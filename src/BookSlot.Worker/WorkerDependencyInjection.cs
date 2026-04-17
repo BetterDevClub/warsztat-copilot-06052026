@@ -24,6 +24,12 @@ public static class WorkerDependencyInjection
         services.AddSingleton<ILeaderElection, PostgresAdvisoryLockLeaderElection>();
         services.AddHostedService<JobScheduler>();
 
+        // Phase 21 — booking-lifecycle jobs. Each one is scoped so it gets a
+        // fresh AppDbContext per tick via JobScheduler's per-tick service scope.
+        services.AddScoped<Jobs.IWorkerJob, Jobs.SlotLockCleanerJob>();
+        services.AddScoped<Jobs.IWorkerJob, Jobs.ReminderDispatcherJob>();
+        services.AddScoped<Jobs.IWorkerJob, Jobs.NoShowMarkerJob>();
+
         return services;
     }
 }

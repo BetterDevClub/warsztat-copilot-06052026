@@ -37,6 +37,20 @@ public sealed class TenantSettings : Entity<Guid>, ITenantScoped
     /// <summary>How many days ahead the public booking flow will expose slots. Clamped to 1–365.</summary>
     public int BookingWindowDays { get; private set; } = 30;
 
+    /// <summary>
+    /// When <c>true</c> the worker's <c>NoShowMarker</c> job will automatically flip
+    /// <see cref="Bookings.BookingStatus.Confirmed"/> bookings into
+    /// <see cref="Bookings.BookingStatus.NoShow"/> after <see cref="NoShowGracePeriodMinutes"/>
+    /// elapse past the booking end time. Opt-in — defaults to <c>false</c>.
+    /// </summary>
+    public bool NoShowAutoMarkEnabled { get; private set; }
+
+    /// <summary>
+    /// Grace period (minutes) added to <c>Booking.EndUtc</c> before a missed appointment
+    /// is eligible for auto-no-show. Clamped to 0–240. Defaults to 15.
+    /// </summary>
+    public int NoShowGracePeriodMinutes { get; private set; } = 15;
+
     /// <summary>Last-update timestamp in UTC. Stamped by the handler.</summary>
     public DateTimeOffset? UpdatedAt { get; private set; }
 
@@ -76,6 +90,25 @@ public sealed class TenantSettings : Entity<Guid>, ITenantScoped
         ContactEmail = contactEmail;
         BrandingPrimaryColor = brandingPrimaryColor;
         BrandingLogoUrl = brandingLogoUrl;
+        UpdatedAt = now;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Updates the auto-no-show policy. Grace is clamped; disabling the feature
+    /// keeps the prior grace value for easy toggling.
+    /// </summary>
+    public Result SetNoShowPolicy(bool enabled, int graceMinutes, DateTimeOffset now)
+    {
+        if (graceMinutes is < 0 or > 240)
+        {
+            return Result.Failure(Error.Validation(
+                "TenantSettings.NoShowGraceOutOfRange",
+                "No-show grace period must be between 0 and 240 minutes."));
+        }
+
+        NoShowAutoMarkEnabled = enabled;
+        NoShowGracePeriodMinutes = graceMinutes;
         UpdatedAt = now;
         return Result.Success();
     }

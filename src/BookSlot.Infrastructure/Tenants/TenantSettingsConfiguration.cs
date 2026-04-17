@@ -19,6 +19,8 @@ internal sealed class TenantSettingsConfiguration : IEntityTypeConfiguration<Ten
         builder.Property(s => s.BrandingPrimaryColor).HasMaxLength(16);
         builder.Property(s => s.BrandingLogoUrl).HasMaxLength(1024);
         builder.Property(s => s.BookingWindowDays).IsRequired();
+        builder.Property(s => s.NoShowAutoMarkEnabled).IsRequired();
+        builder.Property(s => s.NoShowGracePeriodMinutes).IsRequired();
         builder.Property(s => s.UpdatedAt);
     }
 }
