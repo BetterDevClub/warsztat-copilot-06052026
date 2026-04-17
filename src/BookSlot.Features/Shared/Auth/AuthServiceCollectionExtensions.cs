@@ -87,6 +87,15 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.ServiceTypes.GetById.GetServiceTypeById.Handler>();
         services.AddScoped<Features.ServiceTypes.List.ListServiceTypes.Handler>();
         services.AddScoped<Features.ServiceTypes.Deactivate.DeactivateServiceType.Handler>();
+        services.AddScoped<Features.Staff.Create.CreateStaff.Handler>();
+        services.AddScoped<Features.Staff.Update.UpdateStaff.Handler>();
+        services.AddScoped<Features.Staff.GetById.GetStaffById.Handler>();
+        services.AddScoped<Features.Staff.List.ListStaff.Handler>();
+        services.AddScoped<Features.Staff.Deactivate.DeactivateStaff.Handler>();
+        services.AddScoped<Features.Staff.SetServices.SetStaffServices.Handler>();
+        services.AddScoped<Features.Staff.SetAvailabilityRules.SetAvailabilityRules.Handler>();
+        services.AddScoped<Features.Staff.AddAvailabilityOverride.AddAvailabilityOverride.Handler>();
+        services.AddScoped<Features.Staff.RemoveAvailabilityOverride.RemoveAvailabilityOverride.Handler>();
 
         return services;
     }

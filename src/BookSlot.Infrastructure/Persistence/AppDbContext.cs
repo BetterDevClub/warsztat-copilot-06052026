@@ -41,6 +41,18 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Bookable services offered by tenants. Tenant-filtered via <see cref="ITenantScoped"/>.</summary>
     public DbSet<Domain.Services.ServiceType> ServiceTypes => Set<Domain.Services.ServiceType>();
 
+    /// <summary>Tenant staff members. Tenant-filtered.</summary>
+    public DbSet<Domain.Staff.StaffMember> Staff => Set<Domain.Staff.StaffMember>();
+
+    /// <summary>Junction linking staff to the service types they can perform.</summary>
+    public DbSet<Domain.Staff.StaffServiceAssignment> StaffServiceAssignments => Set<Domain.Staff.StaffServiceAssignment>();
+
+    /// <summary>Weekly availability rules per staff member.</summary>
+    public DbSet<Domain.Staff.AvailabilityRule> AvailabilityRules => Set<Domain.Staff.AvailabilityRule>();
+
+    /// <summary>One-off availability overrides (holidays, extra hours).</summary>
+    public DbSet<Domain.Staff.AvailabilityOverride> AvailabilityOverrides => Set<Domain.Staff.AvailabilityOverride>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 
