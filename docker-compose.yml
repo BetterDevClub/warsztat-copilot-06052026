@@ -63,6 +63,7 @@ services:
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_ADMIN_PASSWORD:-BookSlotDev1!}
     ports:
       - "${SEQ_UI_PORT:-8081}:80"           # UI — http://localhost:8081
       - "${SEQ_INGEST_PORT:-5341}:5341"     # Serilog/OTLP ingest
