@@ -103,6 +103,13 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Bookings.Cancel.CancelBooking.Handler>();
         services.AddScoped<Features.Bookings.StartReschedule.StartReschedule.Handler>();
         services.AddScoped<Features.Bookings.ConfirmReschedule.ConfirmReschedule.Handler>();
+        services.AddScoped<Features.Bookings.AdminList.AdminListBookings.Handler>();
+        services.AddScoped<Features.Bookings.AdminGetById.AdminGetBookingById.Handler>();
+        services.AddScoped<Features.Bookings.AdminCreate.AdminCreateBooking.Handler>();
+        services.AddScoped<Features.Bookings.MarkNoShow.MarkBookingNoShow.Handler>();
+        services.AddScoped<Features.Bookings.AddInternalNote.AddBookingInternalNote.Handler>();
+        services.AddScoped<Features.Bookings.ExportCsv.ExportBookingsCsv.Handler>();
+        services.AddScoped<Features.Bookings.DownloadIcal.DownloadBookingIcal.Handler>();
 
         return services;
     }
