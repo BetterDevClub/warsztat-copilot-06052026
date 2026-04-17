@@ -1,3 +1,5 @@
+using System.Reflection;
+using BookSlot.Domain.Abstractions;
 using BookSlot.Domain.Primitives;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,10 +11,19 @@ namespace BookSlot.Infrastructure.Persistence;
 /// implementations, and configures aggregates to ignore <see cref="IDomainEvent"/> collections.
 /// Interceptors (audit, domain event dispatch) are registered through DI.
 /// </summary>
-public sealed class AppDbContext : DbContext
+public class AppDbContext : DbContext
 {
-    /// <summary>Creates the context with the given options.</summary>
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    private readonly ICurrentTenant _currentTenant;
+
+    /// <summary>Creates the context with the given options and resolved tenant.</summary>
+    public AppDbContext(DbContextOptions options, ICurrentTenant currentTenant) : base(options)
+    {
+        ArgumentNullException.ThrowIfNull(currentTenant);
+        _currentTenant = currentTenant;
+    }
+
+    /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
+    protected ICurrentTenant CurrentTenant => _currentTenant;
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -21,17 +32,33 @@ public sealed class AppDbContext : DbContext
 
         modelBuilder.ApplyConfigurationsFromAssembly(InfrastructureAssemblyMarker.Assembly);
 
-        // AggregateRoot<T>.DomainEvents is an in-memory side channel, never persisted.
-        // EF 10 does not discover base generic navigations, but scalars on collections
-        // would otherwise fail mapping; ignore at the model level once per aggregate type.
+        var applyFilterMethod = typeof(AppDbContext)
+            .GetMethod(nameof(ApplyTenantQueryFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
+
         foreach (var entity in modelBuilder.Model.GetEntityTypes())
         {
             var clrType = entity.ClrType;
+
+            // AggregateRoot<T>.DomainEvents is an in-memory side channel, never persisted.
             if (IsAggregateRoot(clrType))
             {
                 modelBuilder.Entity(clrType).Ignore(nameof(AggregateRoot<int>.DomainEvents));
             }
+
+            // Multi-tenant isolation: every ITenantScoped entity gets a global query filter
+            // that compares TenantId against the ambient ICurrentTenant.
+            if (typeof(ITenantScoped).IsAssignableFrom(clrType))
+            {
+                applyFilterMethod.MakeGenericMethod(clrType).Invoke(this, [modelBuilder]);
+            }
         }
+    }
+
+    private void ApplyTenantQueryFilter<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : class, ITenantScoped
+    {
+        modelBuilder.Entity<TEntity>()
+            .HasQueryFilter(e => _currentTenant.TenantId != null && e.TenantId == _currentTenant.TenantId);
     }
 
     private static bool IsAggregateRoot(Type type)

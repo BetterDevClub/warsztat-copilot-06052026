@@ -37,21 +37,39 @@ public static class EndpointExtensions
     }
 
     /// <summary>
-    /// Resolves all registered <see cref="IEndpoint"/> instances and calls
-    /// <see cref="IEndpoint.MapEndpoint"/> on each.
+    /// Resolves all registered <see cref="IEndpoint"/> instances and dispatches each to
+    /// the route builder matching its <see cref="IEndpoint.Scope"/>. Endpoints in
+    /// <see cref="EndpointScope.Public"/> are mapped on <paramref name="app"/> (or the
+    /// <paramref name="publicGroup"/> if provided); endpoints in
+    /// <see cref="EndpointScope.TenantScoped"/> are mapped on <paramref name="tenantGroup"/>.
+    /// Tenant-scoped endpoints are silently skipped when no tenant group is supplied —
+    /// handy for hosts that do not expose the tenant API surface (e.g. public workers).
     /// </summary>
     public static IApplicationBuilder MapEndpoints(
         this WebApplication app,
-        RouteGroupBuilder? routeGroupBuilder = null)
+        RouteGroupBuilder? publicGroup = null,
+        RouteGroupBuilder? tenantGroup = null)
     {
         ArgumentNullException.ThrowIfNull(app);
 
         var endpoints = app.Services.GetRequiredService<IEnumerable<IEndpoint>>();
-        IEndpointRouteBuilder builder = routeGroupBuilder is null ? app : routeGroupBuilder;
+        IEndpointRouteBuilder publicBuilder = publicGroup is null ? app : publicGroup;
 
         foreach (var endpoint in endpoints)
         {
-            endpoint.MapEndpoint(builder);
+            switch (endpoint.Scope)
+            {
+                case EndpointScope.TenantScoped when tenantGroup is not null:
+                    endpoint.MapEndpoint(tenantGroup);
+                    break;
+                case EndpointScope.TenantScoped:
+                    // No tenant group wired — skip silently.
+                    break;
+                case EndpointScope.Public:
+                default:
+                    endpoint.MapEndpoint(publicBuilder);
+                    break;
+            }
         }
 
         return app;

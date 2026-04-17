@@ -23,19 +23,3 @@ internal sealed class AnonymousCurrentUser : ICurrentUser
     /// <inheritdoc />
     public bool IsInRole(string role) => false;
 }
-
-/// <summary>
-/// Placeholder <see cref="ICurrentTenant"/> used before tenant resolution is wired (Phase 5).
-/// Always reports an unresolved tenant.
-/// </summary>
-internal sealed class UnresolvedCurrentTenant : ICurrentTenant
-{
-    /// <inheritdoc />
-    public bool IsResolved => false;
-
-    /// <inheritdoc />
-    public Guid? TenantId => null;
-
-    /// <inheritdoc />
-    public string? Slug => null;
-}
