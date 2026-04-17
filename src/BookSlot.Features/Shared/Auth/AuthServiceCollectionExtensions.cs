@@ -119,6 +119,9 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.WebhookEndpoints.List.ListWebhookEndpoints.Handler>();
         services.AddScoped<Features.WebhookEndpoints.GetDeliveries.GetWebhookDeliveries.Handler>();
         services.AddScoped<Features.WebhookEndpoints.RetryDelivery.RetryWebhookDelivery.Handler>();
+        services.AddScoped<Features.Reports.Bookings.GetBookingsReport.Handler>();
+        services.AddScoped<Features.Reports.BusiestSlots.GetBusiestSlotsReport.Handler>();
+        services.AddScoped<Features.Reports.StaffUtilization.GetStaffUtilizationReport.Handler>();
 
         return services;
     }
