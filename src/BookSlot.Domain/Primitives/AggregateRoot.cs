@@ -1,3 +1,5 @@
+using BookSlot.Domain.Abstractions;
+
 namespace BookSlot.Domain.Primitives;
 
 /// <summary>
@@ -5,7 +7,7 @@ namespace BookSlot.Domain.Primitives;
 /// raised during a unit of work; infrastructure dispatches and clears them after commit.
 /// </summary>
 /// <typeparam name="TId">The identity type.</typeparam>
-public abstract class AggregateRoot<TId> : Entity<TId>
+public abstract class AggregateRoot<TId> : Entity<TId>, IHasDomainEvents
     where TId : notnull
 {
     private readonly List<IDomainEvent> _domainEvents = [];

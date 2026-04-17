@@ -1,8 +1,9 @@
-namespace BookSlot.Features.Shared.Auth;
+namespace BookSlot.Domain.Abstractions;
 
 /// <summary>
-/// Provides information about the caller of the current request.
-/// Implementations live in the host (API) and read from <c>HttpContext.User</c>.
+/// Provides information about the caller of the current unit of work.
+/// Implementations live in the host layer (API: read from <c>HttpContext.User</c>;
+/// Worker: from the job's execution context or a system principal).
 /// </summary>
 public interface ICurrentUser
 {
