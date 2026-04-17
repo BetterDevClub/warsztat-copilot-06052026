@@ -110,6 +110,9 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Bookings.AddInternalNote.AddBookingInternalNote.Handler>();
         services.AddScoped<Features.Bookings.ExportCsv.ExportBookingsCsv.Handler>();
         services.AddScoped<Features.Bookings.DownloadIcal.DownloadBookingIcal.Handler>();
+        services.AddScoped<Features.RecurringBookings.Create.CreateRecurringBooking.Handler>();
+        services.AddScoped<Features.RecurringBookings.Cancel.CancelRecurringBooking.Handler>();
+        services.AddScoped<Features.RecurringBookings.List.ListRecurringBookings.Handler>();
 
         return services;
     }

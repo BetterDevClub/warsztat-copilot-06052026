@@ -59,6 +59,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Confirmed and historical appointments.</summary>
     public DbSet<Domain.Bookings.Booking> Bookings => Set<Domain.Bookings.Booking>();
 
+    /// <summary>Templates for recurring booking series.</summary>
+    public DbSet<Domain.Bookings.RecurringBooking> RecurringBookings => Set<Domain.Bookings.RecurringBooking>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 
