@@ -62,6 +62,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Templates for recurring booking series.</summary>
     public DbSet<Domain.Bookings.RecurringBooking> RecurringBookings => Set<Domain.Bookings.RecurringBooking>();
 
+    /// <summary>Audit log of notification dispatch attempts (tenant-scoped via global filter).</summary>
+    public DbSet<Domain.Notifications.NotificationLog> NotificationLogs => Set<Domain.Notifications.NotificationLog>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 

@@ -1,5 +1,7 @@
 using BookSlot.Domain.Abstractions;
+using BookSlot.Domain.Notifications;
 using BookSlot.Infrastructure.Identity;
+using BookSlot.Infrastructure.Notifications;
 using BookSlot.Infrastructure.Persistence;
 using BookSlot.Infrastructure.Persistence.Interceptors;
 using BookSlot.Infrastructure.Security;
@@ -90,7 +92,43 @@ public static class DependencyInjection
             ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddSingleton<ISlotLock, RedisSlotLock>();
 
+        services.AddNotifications(configuration);
+
         return services;
+    }
+
+    private static void AddNotifications(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<SmsOptions>()
+            .Bind(configuration.GetSection(SmsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<INotificationTemplateRenderer, DefaultNotificationTemplateRenderer>();
+
+        var emailProvider = configuration.GetSection(EmailOptions.SectionName)["Provider"] ?? "Null";
+        if (string.Equals(emailProvider, "Smtp", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        }
+        else
+        {
+            // SendGrid provider stub routes through NullEmailSender until the adapter is wired
+            // (a dedicated HTTP client implementation will land alongside Phase 23 worker jobs).
+            services.AddSingleton<IEmailSender, NullEmailSender>();
+        }
+
+        var smsProvider = configuration.GetSection(SmsOptions.SectionName)["Provider"] ?? "Null";
+        // Twilio adapter deferred; Null sender keeps the abstraction available end-to-end.
+        _ = smsProvider;
+        services.AddSingleton<ISmsSender, NullSmsSender>();
+
+        services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
     }
 
     private static void TryAddTimeProvider(this IServiceCollection services)
