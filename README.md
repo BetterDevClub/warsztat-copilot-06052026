@@ -38,11 +38,48 @@ tests/
 ## Prerequisites
 
 - .NET 10 SDK (`10.0.201` or newer — pinned in `global.json`)
-- Docker Desktop (for later phases: PostgreSQL, Redis, MailHog, Seq, Aspire Dashboard)
+- **Docker Desktop** (WSL2 backend) — for the dev stack (PostgreSQL, Redis, MailHog, Seq, Aspire Dashboard). Install from <https://www.docker.com/products/docker-desktop/>.
+
+## Dev stack (docker compose)
+
+```powershell
+# optional: copy env defaults
+Copy-Item .env.example .env
+
+# start everything in the background
+docker compose up -d
+
+# check health
+docker compose ps
+
+# stop (keep data)
+docker compose down
+
+# stop and wipe volumes
+docker compose down -v
+```
+
+### Service map
+
+| Service | URL / Port | Purpose |
+| --- | --- | --- |
+| Postgres | `localhost:5432` (`bookslot`/`bookslot`/`bookslot`) | Main DB |
+| Redis | `localhost:6379` | SignalR backplane + distributed cache |
+| MailHog SMTP | `localhost:1025` | App SMTP target (dev email) |
+| MailHog UI | <http://localhost:8025> | Captured email inbox |
+| Seq | <http://localhost:8081> | Structured log UI (Serilog sink) |
+| Aspire Dashboard | <http://localhost:18888> | OpenTelemetry traces/metrics/logs |
+| Aspire OTLP (gRPC) | `localhost:18889` | OTLP ingest endpoint (apps ship here) |
+
+Connection strings and OTLP endpoint are already set in each app's `appsettings.Development.json`.
 
 ## Quick start
 
 ```powershell
+# 1. dev stack
+docker compose up -d
+
+# 2. solution
 dotnet restore
 dotnet build
 dotnet test
@@ -50,4 +87,4 @@ dotnet test
 
 ## Current status
 
-Phase 0 — solution bootstrap. No runtime behavior yet.
+Phase 1 — dev environment (docker compose stack + app configs). No runtime behavior yet.

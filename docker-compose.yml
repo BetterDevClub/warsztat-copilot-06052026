@@ -1,0 +1,87 @@
+name: bookslot-dev
+
+# Local developer stack for BookSlot.
+#
+# Services:
+#   postgres           PostgreSQL 17 (main DB)
+#   redis              Redis 7 (SignalR backplane + distributed cache)
+#   mailhog            SMTP catcher (dev email)
+#   seq                Serilog sink + structured log UI
+#   aspire-dashboard   OpenTelemetry OTLP receiver + dashboard
+#
+# Usage:
+#   docker compose up -d
+#   docker compose down        # stop, keep data
+#   docker compose down -v     # stop and wipe volumes
+
+services:
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: bookslot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookslot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookslot}
+      POSTGRES_DB: ${POSTGRES_DB:-bookslot}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookslot} -d ${POSTGRES_DB:-bookslot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: bookslot-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: bookslot-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"   # SMTP (apps connect here)
+      - "${MAILHOG_UI_PORT:-8025}:8025"     # Web UI — http://localhost:8025
+
+  seq:
+    image: datalust/seq:latest
+    container_name: bookslot-seq
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "${SEQ_UI_PORT:-8081}:80"           # UI — http://localhost:8081
+      - "${SEQ_INGEST_PORT:-5341}:5341"     # Serilog/OTLP ingest
+    volumes:
+      - seq-data:/data
+
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    container_name: bookslot-aspire-dashboard
+    restart: unless-stopped
+    environment:
+      DASHBOARD__FRONTEND__AUTHMODE: Unsecured
+      DASHBOARD__OTLP__AUTHMODE: Unsecured
+    ports:
+      - "${ASPIRE_UI_PORT:-18888}:18888"    # Dashboard — http://localhost:18888
+      - "${ASPIRE_OTLP_GRPC_PORT:-18889}:18889"  # OTLP/gRPC
+      - "${ASPIRE_OTLP_HTTP_PORT:-18890}:18890"  # OTLP/HTTP
+
+volumes:
+  postgres-data:
+  redis-data:
+  seq-data:
