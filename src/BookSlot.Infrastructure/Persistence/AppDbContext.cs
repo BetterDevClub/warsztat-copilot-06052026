@@ -32,6 +32,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>API keys issued by tenant owners. Global query filter enforces cross-tenant isolation.</summary>
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
+    /// <summary>Tenants (top-level isolation units). Not tenant-filtered — they ARE the tenants.</summary>
+    public DbSet<Domain.Tenants.Tenant> Tenants => Set<Domain.Tenants.Tenant>();
+
+    /// <summary>Per-tenant settings (timezone, branding, booking window). Tenant-filtered via <see cref="ITenantScoped"/>.</summary>
+    public DbSet<Domain.Tenants.TenantSettings> TenantSettings => Set<Domain.Tenants.TenantSettings>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 

@@ -45,6 +45,10 @@ public static class DependencyInjection
                     npgsql.MigrationsHistoryTable("__ef_migrations_history");
                 });
             options.UseSnakeCaseNamingConvention();
+            // Tenant query filters capture ICurrentTenant via closure; EF's model-change detector
+            // flags this as a pending snapshot diff on every run. The diff is semantic noise, not
+            // a real schema change, so we silence the startup warning.
+            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             options.AddInterceptors(
                 provider.GetRequiredService<AuditInterceptor>(),
                 provider.GetRequiredService<DomainEventDispatchInterceptor>());

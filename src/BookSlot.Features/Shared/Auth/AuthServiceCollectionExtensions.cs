@@ -79,6 +79,9 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<CreateApiKey.Handler>();
         services.AddScoped<RevokeApiKey.Handler>();
         services.AddScoped<ListApiKeys.Handler>();
+        services.AddScoped<Features.Tenants.Register.RegisterTenant.Handler>();
+        services.AddScoped<Features.Tenants.GetSettings.GetTenantSettings.Handler>();
+        services.AddScoped<Features.Tenants.UpdateSettings.UpdateTenantSettings.Handler>();
 
         return services;
     }
