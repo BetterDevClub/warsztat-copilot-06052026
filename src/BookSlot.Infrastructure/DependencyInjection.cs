@@ -3,10 +3,12 @@ using BookSlot.Infrastructure.Identity;
 using BookSlot.Infrastructure.Persistence;
 using BookSlot.Infrastructure.Persistence.Interceptors;
 using BookSlot.Infrastructure.Security;
+using BookSlot.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 
 namespace BookSlot.Infrastructure;
 
@@ -15,6 +17,9 @@ public static class DependencyInjection
 {
     /// <summary>Connection string key used in <c>appsettings*.json</c>.</summary>
     public const string PostgresConnectionStringName = "Postgres";
+
+    /// <summary>Connection string key for Redis used in <c>appsettings*.json</c>.</summary>
+    public const string RedisConnectionStringName = "Redis";
 
     /// <summary>
     /// Registers <see cref="Persistence.AppDbContext"/> against PostgreSQL with snake_case
@@ -77,6 +82,13 @@ public static class DependencyInjection
 
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddHostedService<RoleSeeder>();
+
+        // Redis — IConnectionMultiplexer is a thread-safe singleton; ISlotLock is stateless.
+        var redisConnectionString = configuration.GetConnectionString(RedisConnectionStringName)
+            ?? "localhost:6379";
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+            ConnectionMultiplexer.Connect(redisConnectionString));
+        services.AddSingleton<ISlotLock, RedisSlotLock>();
 
         return services;
     }

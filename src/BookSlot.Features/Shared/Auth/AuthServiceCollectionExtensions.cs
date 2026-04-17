@@ -97,6 +97,8 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Staff.AddAvailabilityOverride.AddAvailabilityOverride.Handler>();
         services.AddScoped<Features.Staff.RemoveAvailabilityOverride.RemoveAvailabilityOverride.Handler>();
         services.AddScoped<Features.Availability.GetSlots.GetSlots.Handler>();
+        services.AddScoped<Features.Reservations.Create.CreateReservation.Handler>();
+        services.AddScoped<Features.Reservations.Release.ReleaseReservation.Handler>();
 
         return services;
     }

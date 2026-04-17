@@ -53,6 +53,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>One-off availability overrides (holidays, extra hours).</summary>
     public DbSet<Domain.Staff.AvailabilityOverride> AvailabilityOverrides => Set<Domain.Staff.AvailabilityOverride>();
 
+    /// <summary>Short-lived slot holds created during the guest checkout flow.</summary>
+    public DbSet<Domain.Reservations.SlotReservation> SlotReservations => Set<Domain.Reservations.SlotReservation>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 
