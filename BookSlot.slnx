@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BookSlot.Api/BookSlot.Api.csproj" />
+    <Project Path="src/BookSlot.Application/BookSlot.Application.csproj" />
+    <Project Path="src/BookSlot.Domain/BookSlot.Domain.csproj" />
+    <Project Path="src/BookSlot.Infrastructure/BookSlot.Infrastructure.csproj" />
+    <Project Path="src/BookSlot.Web.Client/BookSlot.Web.Client.csproj" />
+    <Project Path="src/BookSlot.Web/BookSlot.Web.csproj" />
+    <Project Path="src/BookSlot.Worker/BookSlot.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj" />
+    <Project Path="tests/BookSlot.IntegrationTests/BookSlot.IntegrationTests.csproj" />
+    <Project Path="tests/BookSlot.UnitTests/BookSlot.UnitTests.csproj" />
+  </Folder>
+</Solution>

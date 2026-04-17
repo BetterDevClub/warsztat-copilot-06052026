@@ -1,0 +1,39 @@
+# .NET
+bin/
+obj/
+out/
+*.user
+*.suo
+*.userprefs
+*.vscode-workspace
+.vs/
+.vscode/
+*.lock.json
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+BenchmarkDotNet.Artifacts/
+
+# Rider / JetBrains
+.idea/
+*.DotSettings.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.pfx
+appsettings.*.Local.json
+.env
+.env.*
+!.env.example
+
+# Node (for any JS interop / tooling)
+node_modules/
+npm-debug.log*
+
+# Misc
+*.log
+*.swp
