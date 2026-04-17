@@ -113,6 +113,12 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.RecurringBookings.Create.CreateRecurringBooking.Handler>();
         services.AddScoped<Features.RecurringBookings.Cancel.CancelRecurringBooking.Handler>();
         services.AddScoped<Features.RecurringBookings.List.ListRecurringBookings.Handler>();
+        services.AddScoped<Features.WebhookEndpoints.Create.CreateWebhookEndpoint.Handler>();
+        services.AddScoped<Features.WebhookEndpoints.Update.UpdateWebhookEndpoint.Handler>();
+        services.AddScoped<Features.WebhookEndpoints.Delete.DeleteWebhookEndpoint.Handler>();
+        services.AddScoped<Features.WebhookEndpoints.List.ListWebhookEndpoints.Handler>();
+        services.AddScoped<Features.WebhookEndpoints.GetDeliveries.GetWebhookDeliveries.Handler>();
+        services.AddScoped<Features.WebhookEndpoints.RetryDelivery.RetryWebhookDelivery.Handler>();
 
         return services;
     }

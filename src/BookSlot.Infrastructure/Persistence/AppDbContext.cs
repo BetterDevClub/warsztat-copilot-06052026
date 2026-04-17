@@ -65,6 +65,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Audit log of notification dispatch attempts (tenant-scoped via global filter).</summary>
     public DbSet<Domain.Notifications.NotificationLog> NotificationLogs => Set<Domain.Notifications.NotificationLog>();
 
+    /// <summary>Subscriber-configured webhook endpoints (tenant-scoped).</summary>
+    public DbSet<Domain.Webhooks.WebhookEndpoint> WebhookEndpoints => Set<Domain.Webhooks.WebhookEndpoint>();
+
+    /// <summary>Per-endpoint outbound delivery rows (tenant-scoped).</summary>
+    public DbSet<Domain.Webhooks.WebhookDelivery> WebhookDeliveries => Set<Domain.Webhooks.WebhookDelivery>();
+
+    /// <summary>Transactional outbox (not tenant-scoped — worker reads all tenants).</summary>
+    public DbSet<Domain.Webhooks.OutboxMessage> OutboxMessages => Set<Domain.Webhooks.OutboxMessage>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 

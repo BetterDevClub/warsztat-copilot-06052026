@@ -1,11 +1,13 @@
 using BookSlot.Domain.Abstractions;
 using BookSlot.Domain.Notifications;
+using BookSlot.Domain.Webhooks;
 using BookSlot.Infrastructure.Identity;
 using BookSlot.Infrastructure.Notifications;
 using BookSlot.Infrastructure.Persistence;
 using BookSlot.Infrastructure.Persistence.Interceptors;
 using BookSlot.Infrastructure.Security;
 using BookSlot.Infrastructure.Services;
+using BookSlot.Infrastructure.Webhooks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -93,6 +95,7 @@ public static class DependencyInjection
         services.AddSingleton<ISlotLock, RedisSlotLock>();
 
         services.AddNotifications(configuration);
+        services.AddScoped<IOutboxWriter, OutboxWriter>();
 
         return services;
     }
