@@ -24,6 +24,7 @@ internal sealed class ServiceTypeConfiguration : IEntityTypeConfiguration<Servic
         builder.Property(s => s.CreatedAt).IsRequired();
         builder.Property(s => s.UpdatedAt);
         builder.Property(s => s.IsActive).IsRequired();
+        builder.Property(s => s.FormSchemaJson).HasColumnType("jsonb");
 
         // Slugs are unique per tenant, not globally.
         builder.HasIndex(s => new { s.TenantId, s.Slug }).IsUnique();

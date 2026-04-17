@@ -29,7 +29,8 @@ public static class AdminCreateBooking
         string? GuestPhone,
         string? GuestNotes,
         string? InternalNotes,
-        bool Force);
+        bool Force,
+        Dictionary<string, System.Text.Json.JsonElement>? CustomFieldValues = null);
 
     /// <summary>Response.</summary>
     public sealed record Response(
@@ -90,6 +91,26 @@ public static class AdminCreateBooking
 
             var endUtc = command.StartUtc.AddMinutes(service.DurationMinutes);
 
+            string? customFieldsJson = null;
+            if (!string.IsNullOrWhiteSpace(service.FormSchemaJson))
+            {
+                var parsed = Domain.Services.BookingFormSchema.Parse(service.FormSchemaJson);
+                if (parsed.IsFailure) return Result.Failure<Response>(parsed.Error);
+
+                var submitted = (IReadOnlyDictionary<string, System.Text.Json.JsonElement>?)command.CustomFieldValues
+                    ?? new Dictionary<string, System.Text.Json.JsonElement>();
+                var validation = parsed.Value.Validate(submitted);
+                if (validation.IsFailure) return Result.Failure<Response>(validation.Error);
+
+                if (command.CustomFieldValues is { Count: > 0 })
+                    customFieldsJson = System.Text.Json.JsonSerializer.Serialize(command.CustomFieldValues);
+            }
+            else if (command.CustomFieldValues is { Count: > 0 })
+            {
+                return Result.Failure<Response>(Error.Validation(
+                    "CustomFields.NoSchema", "Service type does not declare a custom form schema."));
+            }
+
             if (!command.Force)
             {
                 // Basic overlap check. When Force=true the admin accepts responsibility
@@ -122,6 +143,8 @@ public static class AdminCreateBooking
                 return Result.Failure<Response>(bookingResult.Error);
 
             var booking = bookingResult.Value;
+            if (customFieldsJson is not null)
+                booking.SetCustomFieldValues(customFieldsJson, now);
             if (!string.IsNullOrWhiteSpace(command.InternalNotes))
                 booking.SetInternalNotes(command.InternalNotes, now);
 

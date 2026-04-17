@@ -90,6 +90,33 @@ public sealed class ServiceType : AggregateRoot<Guid>, ITenantScoped
     /// <summary>Soft-delete flag. Historical bookings keep referencing inactive services.</summary>
     public bool IsActive { get; private set; }
 
+    /// <summary>
+    /// Optional JSON document describing additional fields collected from guests
+    /// on the public booking page. When null no custom fields are shown.
+    /// </summary>
+    public string? FormSchemaJson { get; private set; }
+
+    /// <summary>
+    /// Replaces (or clears) the custom form schema attached to this service.
+    /// Pass null or whitespace to remove the schema entirely.
+    /// </summary>
+    public Result SetFormSchema(string? schemaJson, DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson))
+        {
+            FormSchemaJson = null;
+            UpdatedAt = now;
+            return Result.Success();
+        }
+
+        var parsed = BookingFormSchema.Parse(schemaJson);
+        if (parsed.IsFailure) return Result.Failure(parsed.Error);
+
+        FormSchemaJson = schemaJson;
+        UpdatedAt = now;
+        return Result.Success();
+    }
+
     /// <summary>Factory. Validates every field, returns <see cref="Result{TValue}"/> with the aggregate.</summary>
     public static Result<ServiceType> Create(
         Guid id,

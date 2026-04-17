@@ -27,6 +27,7 @@ internal sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
         builder.Property(b => b.RescheduledFromId);
         builder.Property(b => b.CreatedAt).IsRequired();
         builder.Property(b => b.UpdatedAt);
+        builder.Property(b => b.CustomFieldValuesJson).HasColumnType("jsonb");
 
         // CancelToken and RescheduleToken must be globally unique (guests access by token alone).
         builder.HasIndex(b => b.CancelToken).IsUnique();

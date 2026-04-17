@@ -126,6 +126,8 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Integrations.Zoom.GenerateMeeting.GenerateZoomMeeting.Handler>();
         services.AddScoped<Features.Integrations.Google.StartOAuth.StartGoogleOAuth.Handler>();
         services.AddScoped<Features.Integrations.Google.HandleCallback.HandleGoogleOAuthCallback.Handler>();
+        services.AddScoped<Features.ServiceTypes.SetFormSchema.SetServiceTypeFormSchema.Handler>();
+        services.AddScoped<Features.ServiceTypes.GetFormSchema.GetServiceTypeFormSchema.Handler>();
 
         return services;
     }

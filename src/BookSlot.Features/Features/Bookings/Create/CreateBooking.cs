@@ -25,7 +25,8 @@ public static class CreateBooking
         string GuestName,
         string GuestEmail,
         string? GuestPhone,
-        string? GuestNotes);
+        string? GuestNotes,
+        Dictionary<string, System.Text.Json.JsonElement>? CustomFieldValues);
 
     /// <summary>Response.</summary>
     public sealed record Response(
@@ -84,6 +85,33 @@ public static class CreateBooking
             if (!reservation.IsActive(now))
                 return Result.Failure<Response>(BookingFeatureErrors.ReservationExpired);
 
+            // Look up the service type so we can validate custom fields against its schema.
+            var service = await _db.ServiceTypes.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == reservation.ServiceTypeId, cancellationToken)
+                .ConfigureAwait(false);
+            if (service is null)
+                return Result.Failure<Response>(BookingFeatureErrors.ServiceTypeNotFound);
+
+            string? customFieldsJson = null;
+            if (!string.IsNullOrWhiteSpace(service.FormSchemaJson))
+            {
+                var parsed = Domain.Services.BookingFormSchema.Parse(service.FormSchemaJson);
+                if (parsed.IsFailure) return Result.Failure<Response>(parsed.Error);
+
+                var submitted = (IReadOnlyDictionary<string, System.Text.Json.JsonElement>?)command.CustomFieldValues
+                    ?? new Dictionary<string, System.Text.Json.JsonElement>();
+                var validation = parsed.Value.Validate(submitted);
+                if (validation.IsFailure) return Result.Failure<Response>(validation.Error);
+
+                if (command.CustomFieldValues is { Count: > 0 })
+                    customFieldsJson = System.Text.Json.JsonSerializer.Serialize(command.CustomFieldValues);
+            }
+            else if (command.CustomFieldValues is { Count: > 0 })
+            {
+                return Result.Failure<Response>(Error.Validation(
+                    "CustomFields.NoSchema", "Service type does not declare a custom form schema."));
+            }
+
             var bookingResult = Booking.Create(
                 Guid.NewGuid(),
                 _tenant.TenantId!.Value,
@@ -102,6 +130,8 @@ public static class CreateBooking
                 return Result.Failure<Response>(bookingResult.Error);
 
             var booking = bookingResult.Value;
+            if (customFieldsJson is not null)
+                booking.SetCustomFieldValues(customFieldsJson, now);
             _db.Bookings.Add(booking);
             _db.SlotReservations.Remove(reservation);
 

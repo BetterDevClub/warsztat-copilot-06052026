@@ -108,6 +108,20 @@ public sealed class Booking : AggregateRoot<Guid>, ITenantScoped
     /// <summary>PostgreSQL xmin — used as an EF optimistic concurrency token.</summary>
     public uint Xmin { get; private set; }
 
+    /// <summary>
+    /// Optional JSON document with the guest's answers to custom fields defined
+    /// on the <see cref="Domain.Services.ServiceType.FormSchemaJson"/> schema.
+    /// Stored as jsonb for future querying in reports.
+    /// </summary>
+    public string? CustomFieldValuesJson { get; private set; }
+
+    /// <summary>Attaches (or replaces) the custom field values JSON document.</summary>
+    public void SetCustomFieldValues(string? json, DateTimeOffset now)
+    {
+        CustomFieldValuesJson = string.IsNullOrWhiteSpace(json) ? null : json;
+        UpdatedAt = now;
+    }
+
     // -------------------------------------------------------------------------
     // Domain methods
     // -------------------------------------------------------------------------
