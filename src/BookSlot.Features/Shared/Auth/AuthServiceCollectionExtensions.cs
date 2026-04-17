@@ -99,6 +99,10 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Availability.GetSlots.GetSlots.Handler>();
         services.AddScoped<Features.Reservations.Create.CreateReservation.Handler>();
         services.AddScoped<Features.Reservations.Release.ReleaseReservation.Handler>();
+        services.AddScoped<Features.Bookings.Create.CreateBooking.Handler>();
+        services.AddScoped<Features.Bookings.Cancel.CancelBooking.Handler>();
+        services.AddScoped<Features.Bookings.StartReschedule.StartReschedule.Handler>();
+        services.AddScoped<Features.Bookings.ConfirmReschedule.ConfirmReschedule.Handler>();
 
         return services;
     }

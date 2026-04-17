@@ -56,6 +56,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Short-lived slot holds created during the guest checkout flow.</summary>
     public DbSet<Domain.Reservations.SlotReservation> SlotReservations => Set<Domain.Reservations.SlotReservation>();
 
+    /// <summary>Confirmed and historical appointments.</summary>
+    public DbSet<Domain.Bookings.Booking> Bookings => Set<Domain.Bookings.Booking>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 

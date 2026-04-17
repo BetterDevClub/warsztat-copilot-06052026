@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using BookSlot.Features;
 using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Endpoints;
@@ -9,6 +10,23 @@ var builder = WebApplication.CreateBuilder(args);
 
 // OpenAPI / Swagger surface.
 builder.Services.AddOpenApi();
+
+// Rate limiting — public booking endpoints (per-IP, 10 req/min).
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("bookings-public", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+            }));
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // VSA wire-up: auto-register endpoints and validators from the Features assembly.
 builder.Services.AddEndpoints(FeaturesAssemblyMarker.Assembly);
@@ -34,6 +52,7 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseTenantResolution();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // Public endpoints mount on root; tenant-scoped endpoints mount on /api/v1 with RequireTenantFilter.
 var tenantGroup = app.MapGroup("/api/v1")
