@@ -38,6 +38,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Per-tenant settings (timezone, branding, booking window). Tenant-filtered via <see cref="ITenantScoped"/>.</summary>
     public DbSet<Domain.Tenants.TenantSettings> TenantSettings => Set<Domain.Tenants.TenantSettings>();
 
+    /// <summary>Bookable services offered by tenants. Tenant-filtered via <see cref="ITenantScoped"/>.</summary>
+    public DbSet<Domain.Services.ServiceType> ServiceTypes => Set<Domain.Services.ServiceType>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 

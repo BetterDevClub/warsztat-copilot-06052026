@@ -82,6 +82,11 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Tenants.Register.RegisterTenant.Handler>();
         services.AddScoped<Features.Tenants.GetSettings.GetTenantSettings.Handler>();
         services.AddScoped<Features.Tenants.UpdateSettings.UpdateTenantSettings.Handler>();
+        services.AddScoped<Features.ServiceTypes.Create.CreateServiceType.Handler>();
+        services.AddScoped<Features.ServiceTypes.Update.UpdateServiceType.Handler>();
+        services.AddScoped<Features.ServiceTypes.GetById.GetServiceTypeById.Handler>();
+        services.AddScoped<Features.ServiceTypes.List.ListServiceTypes.Handler>();
+        services.AddScoped<Features.ServiceTypes.Deactivate.DeactivateServiceType.Handler>();
 
         return services;
     }
