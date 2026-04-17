@@ -1,13 +1,16 @@
 using BookSlot.Domain.Abstractions;
+using BookSlot.Infrastructure.Identity;
 using BookSlot.Infrastructure.Persistence;
 using BookSlot.Infrastructure.Persistence.Interceptors;
+using BookSlot.Infrastructure.Security;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BookSlot.Infrastructure;
 
-/// <summary>Composition root for the persistence stack.</summary>
+/// <summary>Composition root for the persistence + identity + JWT stack.</summary>
 public static class DependencyInjection
 {
     /// <summary>Connection string key used in <c>appsettings*.json</c>.</summary>
@@ -47,6 +50,30 @@ public static class DependencyInjection
                 provider.GetRequiredService<DomainEventDispatchInterceptor>());
         });
 
+        services.AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.User.RequireUniqueEmail = false; // enforced per-tenant by composite index
+                options.Password.RequiredLength = 8;
+                options.Password.RequireDigit = true;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.SignIn.RequireConfirmedEmail = false; // dev default; production flip via configuration
+            })
+            .AddRoles<ApplicationRole>()
+            .AddEntityFrameworkStores<AppDbContext>()
+            .AddSignInManager()
+            .AddDefaultTokenProviders();
+
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddHostedService<RoleSeeder>();
+
         return services;
     }
 
@@ -58,3 +85,4 @@ public static class DependencyInjection
         }
     }
 }
+

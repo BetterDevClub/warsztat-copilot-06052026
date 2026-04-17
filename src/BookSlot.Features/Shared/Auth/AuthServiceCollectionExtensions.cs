@@ -1,0 +1,85 @@
+using System.Text;
+using BookSlot.Domain.Abstractions;
+using BookSlot.Features.ApiKeys.Create;
+using BookSlot.Features.ApiKeys.List;
+using BookSlot.Features.ApiKeys.Revoke;
+using BookSlot.Features.Auth.ConfirmEmail;
+using BookSlot.Features.Auth.Login;
+using BookSlot.Features.Auth.Logout;
+using BookSlot.Features.Auth.Refresh;
+using BookSlot.Features.Auth.RequestPasswordReset;
+using BookSlot.Features.Auth.ResetPassword;
+using BookSlot.Features.Shared.Emailing;
+using BookSlot.Infrastructure.Security;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
+
+namespace BookSlot.Features.Shared.Auth;
+
+/// <summary>
+/// DI wire-up for JWT bearer authentication, role-based authorization policies, the
+/// scoped <see cref="ICurrentUser"/> accessor, and every auth / API key slice handler.
+/// Host calls <see cref="AddAuth"/> after <c>AddInfrastructure</c> (so <see cref="JwtOptions"/>
+/// is already bound).
+/// </summary>
+public static class AuthServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers JWT bearer authentication, the role-based authorization policies
+    /// <c>RequireOwner</c> / <c>RequireStaff</c> / <c>RequireViewer</c>, the scoped
+    /// <see cref="CurrentUserAccessor"/>, the dev email sender, and every handler
+    /// used by Phase 6 slices.
+    /// </summary>
+    public static IServiceCollection AddAuth(this IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<CurrentUserAccessor>();
+        services.Replace(ServiceDescriptor.Scoped<ICurrentUser>(sp => sp.GetRequiredService<CurrentUserAccessor>()));
+
+        var jwt = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+            ?? throw new InvalidOperationException(
+                $"Missing '{JwtOptions.SectionName}' configuration section — JWT bearer cannot be wired.");
+
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = jwt.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = jwt.Audience,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                    ClockSkew = TimeSpan.FromSeconds(30),
+                };
+            });
+
+        services.AddAuthorizationBuilder()
+            .AddPolicy("RequireOwner", p => p.RequireRole(Roles.Owner))
+            .AddPolicy("RequireStaff", p => p.RequireRole(Roles.Owner, Roles.Staff))
+            .AddPolicy("RequireViewer", p => p.RequireRole(Roles.Owner, Roles.Staff, Roles.Viewer));
+
+        services.TryAddSingleton<IEmailSender, NoOpEmailSender>();
+
+        // Slice handlers — scoped because they consume the scoped AppDbContext.
+        services.AddScoped<Login.Handler>();
+        services.AddScoped<Refresh.Handler>();
+        services.AddScoped<Logout.Handler>();
+        services.AddScoped<ConfirmEmail.Handler>();
+        services.AddScoped<RequestPasswordReset.Handler>();
+        services.AddScoped<ResetPassword.Handler>();
+        services.AddScoped<CreateApiKey.Handler>();
+        services.AddScoped<RevokeApiKey.Handler>();
+        services.AddScoped<ListApiKeys.Handler>();
+
+        return services;
+    }
+}

@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BookSlot.Domain\BookSlot.Domain.csproj" />
+    <ProjectReference Include="..\BookSlot.Infrastructure\BookSlot.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,5 @@
-using BookSlot.Api.Identity;
 using BookSlot.Features;
+using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Endpoints;
 using BookSlot.Features.Shared.Tenancy;
 using BookSlot.Infrastructure;
@@ -14,11 +14,11 @@ builder.Services.AddOpenApi();
 builder.Services.AddEndpoints(FeaturesAssemblyMarker.Assembly);
 builder.Services.AddValidatorsFromAssembly(FeaturesAssemblyMarker.Assembly);
 
-// Multi-tenancy: scoped ICurrentTenant + header/subdomain resolution middleware.
-// AddTenancy replaces any earlier ICurrentTenant registration with the scoped accessor.
-builder.Services.AddSingleton<BookSlot.Domain.Abstractions.ICurrentUser, AnonymousCurrentUser>();
-builder.Services.AddTenancy(builder.Configuration);
+// Infrastructure first (registers JwtOptions, Identity, DbContext). Tenancy sets up
+// the scoped ICurrentTenant before AddAuth replaces ICurrentUser with the real accessor.
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddTenancy(builder.Configuration);
+builder.Services.AddAuth(builder.Configuration);
 
 var app = builder.Build();
 
@@ -28,7 +28,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Authentication must run before tenant resolution so the tenant slug claim is
+// available to the middleware (priority: claim > subdomain > header).
+app.UseAuthentication();
 app.UseTenantResolution();
+app.UseAuthorization();
 
 // Public endpoints mount on root; tenant-scoped endpoints mount on /api/v1 with RequireTenantFilter.
 var tenantGroup = app.MapGroup("/api/v1")

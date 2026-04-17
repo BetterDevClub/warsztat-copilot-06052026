@@ -70,6 +70,10 @@ public class TenantResolutionEndpointTests : IClassFixture<TenantResolutionEndpo
                 {
                     ["ConnectionStrings:Postgres"]
                         = "Host=127.0.0.1;Port=1;Database=unused;Username=unused;Password=unused",
+                    ["Auth:Jwt:Issuer"] = "BookSlot.Tests",
+                    ["Auth:Jwt:Audience"] = "BookSlot.Tests",
+                    ["Auth:Jwt:SigningKey"] = "test-signing-key-at-least-32-chars-xxxx",
+                    ["Auth:Jwt:ApiKeyPepper"] = "test-api-key-pepper-at-least-32-chars-x",
                 });
             });
             return base.CreateHost(builder);

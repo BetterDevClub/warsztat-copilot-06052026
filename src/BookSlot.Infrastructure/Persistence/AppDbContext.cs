@@ -1,17 +1,21 @@
 using System.Reflection;
 using BookSlot.Domain.Abstractions;
 using BookSlot.Domain.Primitives;
+using BookSlot.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookSlot.Infrastructure.Persistence;
 
 /// <summary>
-/// Primary EF Core context for the application. Uses snake_case naming conventions,
-/// scans <see cref="InfrastructureAssemblyMarker.Assembly"/> for <see cref="IEntityTypeConfiguration{TEntity}"/>
-/// implementations, and configures aggregates to ignore <see cref="IDomainEvent"/> collections.
-/// Interceptors (audit, domain event dispatch) are registered through DI.
+/// Primary EF Core context for the application. Inherits <see cref="IdentityDbContext{TUser,TRole,TKey}"/>
+/// to own ASP.NET Identity tables alongside domain aggregates. Uses snake_case naming
+/// conventions, scans <see cref="InfrastructureAssemblyMarker.Assembly"/> for
+/// <see cref="IEntityTypeConfiguration{TEntity}"/> implementations, and configures
+/// aggregates to ignore <see cref="IDomainEvent"/> collections. Interceptors (audit,
+/// domain event dispatch) are registered through DI.
 /// </summary>
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
 {
     private readonly ICurrentTenant _currentTenant;
 
@@ -22,6 +26,12 @@ public class AppDbContext : DbContext
         _currentTenant = currentTenant;
     }
 
+    /// <summary>Refresh tokens issued to users. Not tenant-filtered — lookup by token hash is authoritative.</summary>
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    /// <summary>API keys issued by tenant owners. Global query filter enforces cross-tenant isolation.</summary>
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 
@@ -29,8 +39,16 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
+        base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfigurationsFromAssembly(InfrastructureAssemblyMarker.Assembly);
+
+        // Email uniqueness is per-tenant, not global — one address may exist in multiple tenants.
+        modelBuilder.Entity<ApplicationUser>(b =>
+        {
+            b.Property(u => u.TenantId).IsRequired();
+            b.HasIndex(u => new { u.TenantId, u.NormalizedEmail }).IsUnique();
+        });
 
         var applyFilterMethod = typeof(AppDbContext)
             .GetMethod(nameof(ApplyTenantQueryFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
