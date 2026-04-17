@@ -20,11 +20,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BookSlot.Domain\BookSlot.Domain.csproj" />
-    <ProjectReference Include="..\..\src\BookSlot.Application\BookSlot.Application.csproj" />
     <ProjectReference Include="..\..\src\BookSlot.Infrastructure\BookSlot.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BookSlot.Api\BookSlot.Api.csproj" />
     <ProjectReference Include="..\..\src\BookSlot.Web\BookSlot.Web.csproj" />
     <ProjectReference Include="..\..\src\BookSlot.Worker\BookSlot.Worker.csproj" />
+    <ProjectReference Include="..\..\src\BookSlot.Features\BookSlot.Features.csproj" />
   </ItemGroup>
 
 </Project>

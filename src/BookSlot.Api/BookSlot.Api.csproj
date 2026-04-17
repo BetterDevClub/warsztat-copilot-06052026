@@ -8,11 +8,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BookSlot.Application\BookSlot.Application.csproj" />
     <ProjectReference Include="..\BookSlot.Infrastructure\BookSlot.Infrastructure.csproj" />
+    <ProjectReference Include="..\BookSlot.Features\BookSlot.Features.csproj" />
   </ItemGroup>
 
 </Project>

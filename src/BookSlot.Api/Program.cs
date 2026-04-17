@@ -1,14 +1,18 @@
+using BookSlot.Features;
+using BookSlot.Features.Shared.Endpoints;
+using FluentValidation;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// OpenAPI / Swagger surface.
 builder.Services.AddOpenApi();
+
+// VSA wire-up: auto-register endpoints and validators from the Features assembly.
+builder.Services.AddEndpoints(FeaturesAssemblyMarker.Assembly);
+builder.Services.AddValidatorsFromAssembly(FeaturesAssemblyMarker.Assembly);
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -16,8 +20,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
-
-app.MapControllers();
+app.MapEndpoints();
 
 app.Run();
+
+/// <summary>Entry point type exposed for <c>WebApplicationFactory&lt;Program&gt;</c> in integration tests.</summary>
+public partial class Program;

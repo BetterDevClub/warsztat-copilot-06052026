@@ -1,8 +1,8 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/BookSlot.Api/BookSlot.Api.csproj" />
-    <Project Path="src/BookSlot.Application/BookSlot.Application.csproj" />
     <Project Path="src/BookSlot.Domain/BookSlot.Domain.csproj" />
+    <Project Path="src/BookSlot.Features/BookSlot.Features.csproj" />
     <Project Path="src/BookSlot.Infrastructure/BookSlot.Infrastructure.csproj" />
     <Project Path="src/BookSlot.Web.Client/BookSlot.Web.Client.csproj" />
     <Project Path="src/BookSlot.Web/BookSlot.Web.csproj" />

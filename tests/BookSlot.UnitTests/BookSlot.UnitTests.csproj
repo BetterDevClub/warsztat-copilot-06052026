@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BookSlot.Domain\BookSlot.Domain.csproj" />
-    <ProjectReference Include="..\..\src\BookSlot.Application\BookSlot.Application.csproj" />
+    <ProjectReference Include="..\..\src\BookSlot.Features\BookSlot.Features.csproj" />
   </ItemGroup>
 
 </Project>
