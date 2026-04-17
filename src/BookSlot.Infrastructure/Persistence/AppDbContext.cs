@@ -74,6 +74,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Transactional outbox (not tenant-scoped — worker reads all tenants).</summary>
     public DbSet<Domain.Webhooks.OutboxMessage> OutboxMessages => Set<Domain.Webhooks.OutboxMessage>();
 
+    /// <summary>Third-party OAuth2 connections (Google Calendar, Zoom, …). Tenant-scoped.</summary>
+    public DbSet<Domain.Integrations.IntegrationConnection> IntegrationConnections => Set<Domain.Integrations.IntegrationConnection>();
+
     /// <summary>Tenant visible to this context. Captured by global query filters.</summary>
     protected ICurrentTenant CurrentTenant => _currentTenant;
 

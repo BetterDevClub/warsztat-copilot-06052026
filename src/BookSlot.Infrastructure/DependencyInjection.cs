@@ -1,7 +1,9 @@
 using BookSlot.Domain.Abstractions;
+using BookSlot.Domain.Integrations;
 using BookSlot.Domain.Notifications;
 using BookSlot.Domain.Webhooks;
 using BookSlot.Infrastructure.Identity;
+using BookSlot.Infrastructure.Integrations;
 using BookSlot.Infrastructure.Notifications;
 using BookSlot.Infrastructure.Persistence;
 using BookSlot.Infrastructure.Persistence.Interceptors;
@@ -96,8 +98,18 @@ public static class DependencyInjection
 
         services.AddNotifications(configuration);
         services.AddScoped<IOutboxWriter, OutboxWriter>();
+        services.AddIntegrations(configuration);
 
         return services;
+    }
+
+    private static void AddIntegrations(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<GoogleOAuthOptions>()
+            .Bind(configuration.GetSection(GoogleOAuthOptions.SectionName));
+
+        // Zoom mock stands in until the real HTTP adapter lands in Phase 22.
+        services.AddSingleton<IMeetingLinkGenerator, MockZoomMeetingLinkGenerator>();
     }
 
     private static void AddNotifications(this IServiceCollection services, IConfiguration configuration)

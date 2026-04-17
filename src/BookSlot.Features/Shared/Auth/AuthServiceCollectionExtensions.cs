@@ -122,6 +122,10 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Reports.Bookings.GetBookingsReport.Handler>();
         services.AddScoped<Features.Reports.BusiestSlots.GetBusiestSlotsReport.Handler>();
         services.AddScoped<Features.Reports.StaffUtilization.GetStaffUtilizationReport.Handler>();
+        services.AddScoped<Features.Calendar.GetIcalFeed.GetIcalFeed.Handler>();
+        services.AddScoped<Features.Integrations.Zoom.GenerateMeeting.GenerateZoomMeeting.Handler>();
+        services.AddScoped<Features.Integrations.Google.StartOAuth.StartGoogleOAuth.Handler>();
+        services.AddScoped<Features.Integrations.Google.HandleCallback.HandleGoogleOAuthCallback.Handler>();
 
         return services;
     }
