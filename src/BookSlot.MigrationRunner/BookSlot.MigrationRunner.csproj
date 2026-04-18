@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>BookSlot.MigrationRunner</RootNamespace>
+    <UserSecretsId>bookslot-migration-runner-dev</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\BookSlot.Domain\BookSlot.Domain.csproj" />
+    <ProjectReference Include="..\BookSlot.Infrastructure\BookSlot.Infrastructure.csproj" />
+    <ProjectReference Include="..\BookSlot.Features\BookSlot.Features.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

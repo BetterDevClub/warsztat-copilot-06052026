@@ -12,6 +12,7 @@ src/BookSlot.Api/               // Minimal APIs + JWT
 src/BookSlot.Web/               // Blazor Web App server host
 src/BookSlot.Web.Client/        // Blazor WASM interactive client
 src/BookSlot.Worker/            // BackgroundService jobs (outbox, reminders, webhooks)
+src/BookSlot.MigrationRunner/   // one-shot console: migrations + role + demo data seeding
 tests/BookSlot.UnitTests/
 tests/BookSlot.IntegrationTests/    // Testcontainers Postgres
 tests/BookSlot.ArchitectureTests/   // NetArchTest VSA guardrails — DO NOT remove

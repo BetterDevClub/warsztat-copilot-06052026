@@ -9,26 +9,28 @@ Operational notes for running BookSlot locally and in production.
 ```powershell
 docker compose up -d postgres redis mailhog seq
 dotnet build BookSlot.slnx
-dotnet run --project src/BookSlot.Web   # applies migrations + seeds dev data
-dotnet run --project src/BookSlot.Api   # in another terminal
+dotnet run --project src/BookSlot.MigrationRunner   # applies migrations + seeds roles + demo data
+dotnet run --project src/BookSlot.Web               # in another terminal
+dotnet run --project src/BookSlot.Api
 dotnet run --project src/BookSlot.Worker
 ```
 
-The Web host owns migrations + seeding (DevDataSeeder). Don't try to start the API against a fresh DB without first booting Web at least once.
+`BookSlot.MigrationRunner` is a single-shot console app that owns the database lifecycle: it applies EF Core migrations, seeds Identity roles (`Owner` / `Staff` / `Viewer`), and (when `Seed:Demo` is true — default in `Development`) seeds a demo tenant + Owner/Staff users. **Hosts (Api / Web / Worker) never migrate or seed at startup** — they assume the schema is already there and fail fast otherwise. CLI flags: `--seed-demo` / `--no-seed-demo` override config. Exit code: `0` success, `1` failure (suitable for K8s `initContainer`).
 
 ### Reset everything
 
 ```powershell
 docker compose down -v
 docker compose up -d postgres redis mailhog seq
-dotnet run --project src/BookSlot.Web   # re-applies migrations
+dotnet run --project src/BookSlot.MigrationRunner   # re-applies migrations + re-seeds
 ```
 
 ### Default credentials
 
-| Role  | Email                | Password        |
-| ----- | -------------------- | --------------- |
-| Admin | `admin@bookslot.dev` | `BookSlotDev1!` |
+| Role  | Email              | Password    |
+| ----- | ------------------ | ----------- |
+| Owner | `admin@demo.local` | `Admin123!` |
+| Staff | `staff@demo.local` | `Staff123!` |
 
 Seq admin password (when prompted): `BookSlotDev1!`.
 
@@ -51,13 +53,19 @@ If `/health/ready` fails, check:
 ### Apply pending migrations
 
 ```powershell
-dotnet ef database update --project src/BookSlot.Infrastructure --startup-project src/BookSlot.Web
+dotnet run --project src/BookSlot.MigrationRunner --no-seed-demo
+```
+
+(or, equivalently, the EF CLI:)
+
+```powershell
+dotnet ef database update --project src/BookSlot.Infrastructure --startup-project src/BookSlot.MigrationRunner
 ```
 
 ### Generate a new migration
 
 ```powershell
-dotnet ef migrations add <Name> --project src/BookSlot.Infrastructure --startup-project src/BookSlot.Web
+dotnet ef migrations add <Name> --project src/BookSlot.Infrastructure --startup-project src/BookSlot.MigrationRunner
 ```
 
 ### Rotate JWT signing key (Production)

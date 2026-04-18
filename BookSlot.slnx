@@ -4,6 +4,7 @@
     <Project Path="src/BookSlot.Domain/BookSlot.Domain.csproj" />
     <Project Path="src/BookSlot.Features/BookSlot.Features.csproj" />
     <Project Path="src/BookSlot.Infrastructure/BookSlot.Infrastructure.csproj" />
+    <Project Path="src/BookSlot.MigrationRunner/BookSlot.MigrationRunner.csproj" />
     <Project Path="src/BookSlot.Web.Client/BookSlot.Web.Client.csproj" />
     <Project Path="src/BookSlot.Web/BookSlot.Web.csproj" />
     <Project Path="src/BookSlot.Worker/BookSlot.Worker.csproj" />

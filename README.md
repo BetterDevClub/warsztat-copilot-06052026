@@ -89,19 +89,23 @@ dotnet build BookSlot.slnx
 dotnet test tests/BookSlot.UnitTests/BookSlot.UnitTests.csproj
 dotnet test tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj
 
-# 3. run the apps (separate terminals)
+# 3. database — apply migrations + seed roles + demo data (one-shot)
+dotnet run --project src/BookSlot.MigrationRunner
+
+# 4. run the apps (separate terminals)
 dotnet run --project src/BookSlot.Api
 dotnet run --project src/BookSlot.Web
 dotnet run --project src/BookSlot.Worker
 ```
 
-The Web host applies migrations and seeds dev data on startup.
+`BookSlot.MigrationRunner` is a console app that owns the database lifecycle (migrations + Identity roles + demo data). Hosts never migrate or seed at startup — run the runner once before booting any host. Re-run any time it's safe (idempotent).
 
 ### Default dev credentials
 
-| Role  | Email                | Password         |
-| ----- | -------------------- | ---------------- |
-| Admin | `admin@bookslot.dev` | `BookSlotDev1!`  |
+| Role  | Email              | Password    |
+| ----- | ------------------ | ----------- |
+| Owner | `admin@demo.local` | `Admin123!` |
+| Staff | `staff@demo.local` | `Staff123!` |
 
 ## Docker images
 

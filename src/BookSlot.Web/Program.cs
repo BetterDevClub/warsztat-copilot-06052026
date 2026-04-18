@@ -3,7 +3,6 @@ using BookSlot.Features;
 using BookSlot.Features.Shared;
 using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Tenancy;
-using BookSlot.Web;
 using BookSlot.Infrastructure;
 using BookSlot.Infrastructure.Observability;
 using BookSlot.Infrastructure.Security;
@@ -94,11 +93,8 @@ if (!string.IsNullOrWhiteSpace(redisConn))
     signalR.AddStackExchangeRedis(redisConn, opts => opts.Configuration.ChannelPrefix = RedisChannel.Literal("bookslot"));
 }
 
-// Seed demo tenant + users (Owner/Staff) in Development only.
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddHostedService<DevDataSeeder>();
-}
+// Migration + role seeding + demo-data seeding all live in BookSlot.MigrationRunner.
+// Hosts assume the schema is already in place and fail fast otherwise.
 
 // Probe surface — same set as the API host.
 builder.Services.AddBookSlotHealthChecks(builder.Configuration);

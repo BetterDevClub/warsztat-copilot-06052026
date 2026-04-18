@@ -29,10 +29,11 @@ public static class DependencyInjection
 
     /// <summary>
     /// Registers <see cref="Persistence.AppDbContext"/> against PostgreSQL with snake_case
-    /// naming conventions, the audit + domain-event-dispatch interceptors, and the default
-    /// in-process dispatcher. Expects a connection string named <c>Postgres</c>.
+    /// naming conventions, the audit + domain-event-dispatch interceptors, Identity core +
+    /// roles, and JWT options. Used by every host (and by the migration runner) — does NOT
+    /// touch Redis, notifications, or webhook integrations.
     /// </summary>
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -56,9 +57,6 @@ public static class DependencyInjection
                     npgsql.MigrationsHistoryTable("__ef_migrations_history");
                 });
             options.UseSnakeCaseNamingConvention();
-            // Tenant query filters capture ICurrentTenant via closure; EF's model-change detector
-            // flags this as a pending snapshot diff on every run. The diff is semantic noise, not
-            // a real schema change, so we silence the startup warning.
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             options.AddInterceptors(
                 provider.GetRequiredService<AuditInterceptor>(),
@@ -67,14 +65,14 @@ public static class DependencyInjection
 
         services.AddIdentityCore<ApplicationUser>(options =>
             {
-                options.User.RequireUniqueEmail = false; // enforced per-tenant by composite index
+                options.User.RequireUniqueEmail = false;
                 options.Password.RequiredLength = 8;
                 options.Password.RequireDigit = true;
                 options.Password.RequireUppercase = true;
                 options.Password.RequireNonAlphanumeric = false;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                 options.Lockout.MaxFailedAccessAttempts = 5;
-                options.SignIn.RequireConfirmedEmail = false; // dev default; production flip via configuration
+                options.SignIn.RequireConfirmedEmail = false;
             })
             .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<AppDbContext>()
@@ -87,7 +85,21 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
-        services.AddHostedService<RoleSeeder>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Full host registration: persistence + Redis + notifications + integrations.
+    /// Hosts that need the complete runtime stack call this; the standalone migration
+    /// runner uses <see cref="AddPersistence"/> instead so it can run without Redis.
+    /// </summary>
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddPersistence(configuration);
 
         // Redis — IConnectionMultiplexer is a thread-safe singleton; ISlotLock is stateless.
         var redisConnectionString = configuration.GetConnectionString(RedisConnectionStringName)
