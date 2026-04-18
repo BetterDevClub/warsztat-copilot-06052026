@@ -23,4 +23,10 @@ public enum NotificationKind
 
     /// <summary>Welcome email to a newly provisioned staff account.</summary>
     StaffWelcome = 21,
+
+    /// <summary>Per-tenant summary of the next day's bookings, sent at local 18:00.</summary>
+    DailyDigest = 30,
+
+    /// <summary>Per-tenant archive of the previous month's activity, sent early on day 1.</summary>
+    MonthlyReport = 31,
 }

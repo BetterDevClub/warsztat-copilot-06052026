@@ -38,6 +38,11 @@ public static class WorkerDependencyInjection
         services.AddScoped<Jobs.IWorkerJob, Jobs.WebhookDeliveryJob>();
         services.AddScoped<Jobs.IWorkerJob, Jobs.GoogleCalendarTokenRefreshJob>();
 
+        // Phase 23 — scheduled jobs (per-tenant TZ-aware).
+        services.AddScoped<Jobs.IWorkerJob, Jobs.DailyDigestSenderJob>();
+        services.AddScoped<Jobs.IWorkerJob, Jobs.RecurringBookingGeneratorJob>();
+        services.AddScoped<Jobs.IWorkerJob, Jobs.MonthlyReportArchiverJob>();
+
         return services;
     }
 }
