@@ -1,0 +1,112 @@
+@page "/admin/staff"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireOwner")]
+@rendermode InteractiveServer
+@using BookSlot.Features.Staff.Create
+@using BookSlot.Features.Staff.Deactivate
+@using BookSlot.Features.Staff.List
+@inject ListStaff.Handler ListHandler
+@inject CreateStaff.Handler CreateHandler
+@inject DeactivateStaff.Handler DeactivateHandler
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Staff</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Staff</MudText>
+    <MudSpacer />
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">New staff member</MudButton>
+</MudStack>
+
+@if (_error is not null) { <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert> }
+
+<MudTable Items="_items" Dense="true" Hover="true" Loading="_loading" LoadingProgressColor="Color.Primary">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Title</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh Style="text-align:right">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudAvatar Size="Size.Small" Color="Color.Primary">@Initials(context.DisplayName)</MudAvatar>
+                <MudText>@context.DisplayName</MudText>
+            </MudStack>
+        </MudTd>
+        <MudTd>@(context.Title ?? "—")</MudTd>
+        <MudTd>
+            @if (context.IsActive) { <MudChip T="string" Color="Color.Success" Size="Size.Small">Active</MudChip> }
+            else { <MudChip T="string" Color="Color.Default" Size="Size.Small">Inactive</MudChip> }
+        </MudTd>
+        <MudTd Style="text-align:right">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                           OnClick="@(() => Nav.NavigateTo($"/admin/staff/{context.Id}"))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           Disabled="@(!context.IsActive)" OnClick="@(() => DeactivateAsync(context))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent><MudText Class="pa-4">No staff yet.</MudText></NoRecordsContent>
+</MudTable>
+
+@code {
+    private IReadOnlyList<ListStaff.Item> _items = Array.Empty<ListStaff.Item>();
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var res = await ListHandler.HandleAsync(true, CancellationToken.None);
+            _items = res.Value?.Items ?? Array.Empty<ListStaff.Item>();
+            _error = res.IsFailure ? res.Error.Message : null;
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenCreate()
+    {
+        var dlg = await Dialog.ShowAsync<CreateStaffDialog>("New staff member");
+        var res = await dlg.Result;
+        if (res is { Canceled: false, Data: CreateStaff.Command cmd })
+        {
+            var result = await CreateHandler.HandleAsync(cmd, CancellationToken.None);
+            if (result.IsSuccess)
+            {
+                Snackbar.Add("Staff member created.", Severity.Success);
+                Nav.NavigateTo($"/admin/staff/{result.Value!.Id}");
+            }
+            else Snackbar.Add(result.Error.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(ListStaff.Item item)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Deactivate staff member?" },
+            { x => x.Message, $"Deactivate '{item.DisplayName}'? They will not be bookable but existing bookings remain." },
+            { x => x.ConfirmText, "Deactivate" },
+            { x => x.ConfirmColor, Color.Error },
+        };
+        var dlg = await Dialog.ShowAsync<ConfirmDialog>("Deactivate?", parameters);
+        var res = await dlg.Result;
+        if (res is null || res.Canceled) return;
+        var result = await DeactivateHandler.HandleAsync(item.Id, CancellationToken.None);
+        if (result.IsSuccess) { Snackbar.Add("Deactivated.", Severity.Success); await LoadAsync(); }
+        else Snackbar.Add(result.Error.Message, Severity.Error);
+    }
+
+    private static string Initials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
+        return (parts[0][..1] + parts[^1][..1]).ToUpperInvariant();
+    }
+}

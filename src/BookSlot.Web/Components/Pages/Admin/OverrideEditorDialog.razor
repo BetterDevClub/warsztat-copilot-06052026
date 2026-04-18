@@ -1,0 +1,54 @@
+@using BookSlot.Features.Staff.AddAvailabilityOverride
+
+<MudDialog>
+    <DialogContent>
+        <MudStack>
+            <MudDatePicker @bind-Date="_date" Label="Date" Required="true" />
+            <MudRadioGroup T="bool" Value="_isUnavailable" ValueChanged="OnKindChanged">
+                <MudRadio T="bool" Value="true">Unavailable (full day)</MudRadio>
+                <MudRadio T="bool" Value="false">Extra hours window</MudRadio>
+            </MudRadioGroup>
+            @if (!_isUnavailable)
+            {
+                <MudStack Row="true">
+                    <MudTimePicker @bind-Time="_start" Label="Start" />
+                    <MudTimePicker @bind-Time="_end" Label="End" />
+                </MudStack>
+            }
+            <MudTextField @bind-Value="_reason" Label="Reason (optional)" MaxLength="200" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!CanSubmit)">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Mud { get; set; } = null!;
+
+    private DateTime? _date = DateTime.Today;
+    private bool _isUnavailable = true;
+    private TimeSpan? _start;
+    private TimeSpan? _end;
+    private string? _reason;
+
+    private bool CanSubmit => _date is not null && (_isUnavailable || (_start is not null && _end is not null && _end > _start));
+
+    private void OnKindChanged(bool value) => _isUnavailable = value;
+
+    private void Cancel() => Mud.Cancel();
+
+    private void Submit()
+    {
+        if (_date is null) return;
+        var d = DateOnly.FromDateTime(_date.Value);
+        var cmd = new AddAvailabilityOverride.Command(
+            d,
+            _isUnavailable,
+            _isUnavailable ? null : TimeOnly.FromTimeSpan(_start!.Value),
+            _isUnavailable ? null : TimeOnly.FromTimeSpan(_end!.Value),
+            string.IsNullOrWhiteSpace(_reason) ? null : _reason!.Trim());
+        Mud.Close(DialogResult.Ok(cmd));
+    }
+}

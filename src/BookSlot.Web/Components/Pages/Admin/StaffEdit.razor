@@ -1,0 +1,207 @@
+@page "/admin/staff/{Id:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireOwner")]
+@rendermode InteractiveServer
+@using BookSlot.Features.ServiceTypes.List
+@using BookSlot.Features.Staff.AddAvailabilityOverride
+@using BookSlot.Features.Staff.GetDetails
+@using BookSlot.Features.Staff.RemoveAvailabilityOverride
+@using BookSlot.Features.Staff.SetAvailabilityRules
+@using BookSlot.Features.Staff.SetServices
+@using BookSlot.Features.Staff.Update
+@inject GetStaffDetails.Handler GetHandler
+@inject UpdateStaff.Handler UpdateHandler
+@inject SetAvailabilityRules.Handler SetRulesHandler
+@inject AddAvailabilityOverride.Handler AddOverrideHandler
+@inject RemoveAvailabilityOverride.Handler RemoveOverrideHandler
+@inject SetStaffServices.Handler SetServicesHandler
+@inject ListServiceTypes.Handler ListServicesHandler
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject NavigationManager Nav
+
+<PageTitle>Edit staff</PageTitle>
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error">@_loadError</MudAlert>
+}
+else if (_data is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/admin/staff"))" />
+        <MudText Typo="Typo.h5">@_data.DisplayName</MudText>
+        <MudChip T="string" Size="Size.Small" Color="@(_data.IsActive ? Color.Success : Color.Default)">@(_data.IsActive ? "Active" : "Inactive")</MudChip>
+    </MudStack>
+
+    <MudTabs Elevation="1" Rounded="true">
+        <MudTabPanel Text="Details" Icon="@Icons.Material.Filled.Info">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_displayName" Label="Display name" MaxLength="120" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_title" Label="Title" MaxLength="80" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" /></MudItem>
+            </MudGrid>
+            <MudButton Class="mt-3" Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDetails">Save details</MudButton>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Services" Icon="@Icons.Material.Filled.DesignServices">
+            <MudText Class="mb-2">Select which services this staff member can perform.</MudText>
+            @if (_allServices.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">No services exist yet. Create services first.</MudAlert>
+            }
+            else
+            {
+                <MudPaper Class="pa-3" Outlined="true">
+                    <MudStack>
+                        @foreach (var svc in _allServices)
+                        {
+                            var id = svc.Id;
+                            <MudCheckBox T="bool" Value="@_assignedServices.Contains(id)"
+                                         ValueChanged="@(on => ToggleService(id, on))"
+                                         Label="@($"{svc.Name} ({svc.DurationMinutes} min)")" />
+                        }
+                    </MudStack>
+                </MudPaper>
+                <MudButton Class="mt-3" Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveServices">Save services</MudButton>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Weekly availability" Icon="@Icons.Material.Filled.Schedule">
+            <WeeklyAvailabilityGrid InitialRules="_initialRules" OnChanged="OnRulesChanged" />
+            <MudStack Row="true" Class="mt-3" AlignItems="AlignItems.Center">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveRules">Save availability</MudButton>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@_draftRules.Count rule(s)</MudText>
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Overrides" Icon="@Icons.Material.Filled.EventBusy">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                <MudText>Date-specific exceptions (holidays, extra hours).</MudText>
+                <MudSpacer />
+                <MudButton Color="Color.Primary" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="AddOverride">Add override</MudButton>
+            </MudStack>
+            <MudTable Items="_data.Overrides" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Window</MudTh>
+                    <MudTh>Reason</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Date.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd>
+                        @if (context.IsUnavailable) { <MudChip T="string" Color="Color.Error" Size="Size.Small">Unavailable</MudChip> }
+                        else { <MudChip T="string" Color="Color.Info" Size="Size.Small">Extra hours</MudChip> }
+                    </MudTd>
+                    <MudTd>@(context.IsUnavailable ? "All day" : $"{context.StartTime:HH\\:mm}–{context.EndTime:HH\\:mm}")</MudTd>
+                    <MudTd>@(context.Reason ?? "—")</MudTd>
+                    <MudTd Style="text-align:right">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => RemoveOverride(context.Id))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Class="pa-4">No overrides.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private GetStaffDetails.Response? _data;
+    private string? _loadError;
+
+    private string _displayName = string.Empty;
+    private string? _title;
+    private string? _email;
+
+    private IReadOnlyList<ListServiceTypes.Item> _allServices = Array.Empty<ListServiceTypes.Item>();
+    private HashSet<Guid> _assignedServices = new();
+
+    private IReadOnlyList<SetAvailabilityRules.RuleDto> _initialRules = Array.Empty<SetAvailabilityRules.RuleDto>();
+    private IReadOnlyList<SetAvailabilityRules.RuleDto> _draftRules = Array.Empty<SetAvailabilityRules.RuleDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        var svc = await ListServicesHandler.HandleAsync(true, CancellationToken.None);
+        _allServices = svc.Value?.Items ?? Array.Empty<ListServiceTypes.Item>();
+    }
+
+    private async Task LoadAsync()
+    {
+        var res = await GetHandler.HandleAsync(Id, CancellationToken.None);
+        if (res.IsFailure) { _loadError = res.Error.Message; return; }
+        _data = res.Value!;
+        _displayName = _data.DisplayName; _title = _data.Title; _email = _data.Email;
+        _assignedServices = new HashSet<Guid>(_data.ServiceTypeIds);
+        _initialRules = _data.Rules
+            .Select(r => new SetAvailabilityRules.RuleDto(r.DayOfWeek, r.StartTime, r.EndTime))
+            .ToList();
+        _draftRules = _initialRules;
+    }
+
+    private async Task SaveDetails()
+    {
+        var cmd = new UpdateStaff.Command(_displayName, _title, _email);
+        var res = await UpdateHandler.HandleAsync(Id, cmd, CancellationToken.None);
+        if (res.IsSuccess) { Snackbar.Add("Saved.", Severity.Success); await LoadAsync(); }
+        else Snackbar.Add(res.Error.Message, Severity.Error);
+    }
+
+    private void ToggleService(Guid id, bool on)
+    {
+        if (on) _assignedServices.Add(id); else _assignedServices.Remove(id);
+    }
+
+    private async Task SaveServices()
+    {
+        var cmd = new SetStaffServices.Command(_assignedServices.ToList());
+        var res = await SetServicesHandler.HandleAsync(Id, cmd, CancellationToken.None);
+        if (res.IsSuccess) Snackbar.Add("Services updated.", Severity.Success);
+        else Snackbar.Add(res.Error.Message, Severity.Error);
+    }
+
+    private void OnRulesChanged(IReadOnlyList<SetAvailabilityRules.RuleDto> rules) => _draftRules = rules;
+
+    private async Task SaveRules()
+    {
+        var res = await SetRulesHandler.HandleAsync(Id, new SetAvailabilityRules.Command(_draftRules), CancellationToken.None);
+        if (res.IsSuccess) { Snackbar.Add($"Saved {_draftRules.Count} rule(s).", Severity.Success); await LoadAsync(); }
+        else Snackbar.Add(res.Error.Message, Severity.Error);
+    }
+
+    private async Task AddOverride()
+    {
+        var dlg = await Dialog.ShowAsync<OverrideEditorDialog>("Add override");
+        var res = await dlg.Result;
+        if (res is { Canceled: false, Data: AddAvailabilityOverride.Command cmd })
+        {
+            var r = await AddOverrideHandler.HandleAsync(Id, cmd, CancellationToken.None);
+            if (r.IsSuccess) { Snackbar.Add("Override added.", Severity.Success); await LoadAsync(); }
+            else Snackbar.Add(r.Error.Message, Severity.Error);
+        }
+    }
+
+    private async Task RemoveOverride(Guid overrideId)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Remove override?" },
+            { x => x.Message, "This removes the date-specific exception." },
+            { x => x.ConfirmText, "Remove" },
+            { x => x.ConfirmColor, Color.Error },
+        };
+        var dlg = await Dialog.ShowAsync<ConfirmDialog>("Remove?", parameters);
+        var res = await dlg.Result;
+        if (res is null || res.Canceled) return;
+        var r = await RemoveOverrideHandler.HandleAsync(Id, overrideId, CancellationToken.None);
+        if (r.IsSuccess) { Snackbar.Add("Removed.", Severity.Success); await LoadAsync(); }
+        else Snackbar.Add(r.Error.Message, Severity.Error);
+    }
+}
