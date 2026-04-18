@@ -5,6 +5,7 @@ using BookSlot.Features.Shared.Endpoints;
 using BookSlot.Features.Shared.Tenancy;
 using BookSlot.Infrastructure;
 using BookSlot.Infrastructure.Observability;
+using BookSlot.Infrastructure.Security;
 using FluentValidation;
 using Serilog;
 
@@ -18,7 +19,9 @@ builder.Services.AddBookSlotOpenTelemetry(builder.Configuration, "BookSlot.Api")
 // OpenAPI / Swagger surface.
 builder.Services.AddOpenApi();
 
-// Rate limiting — public booking endpoints (per-IP, 10 req/min).
+// Rate limiting — public booking endpoints (per-IP, 10 req/min) and sensitive
+// auth endpoints (login/refresh, per-IP, 5 req/min) so brute-force attempts
+// hit a 429 long before lockout kicks in.
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy("bookings-public", httpContext =>
@@ -32,8 +35,22 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
             }));
 
+    options.AddPolicy("auth-sensitive", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+            }));
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
+
+// CORS for browser callers (booking widgets); origins come from Cors:AllowedOrigins.
+builder.Services.AddBookSlotCors(builder.Configuration, builder.Environment);
 
 // VSA wire-up: auto-register endpoints and validators from the Features assembly.
 builder.Services.AddEndpoints(FeaturesAssemblyMarker.Assembly);
@@ -45,12 +62,16 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddTenancy(builder.Configuration);
 builder.Services.AddAuth(builder.Configuration);
 
+// Fail-fast on Production startup if a placeholder/dev secret leaked into config.
+builder.Services.AddHostedService<ProductionSecretsValidator>();
+
 // Probe surface: /health (full report), /health/ready (deps), /health/live (process up).
 builder.Services.AddBookSlotHealthChecks(builder.Configuration);
 
 var app = builder.Build();
 
 app.UseCorrelationId();
+app.UseSecurityHeaders();
 app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
@@ -59,6 +80,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseBookSlotCors();
 
 // Authentication must run before tenant resolution so the tenant slug claim is
 // available to the middleware (priority: claim > subdomain > header).

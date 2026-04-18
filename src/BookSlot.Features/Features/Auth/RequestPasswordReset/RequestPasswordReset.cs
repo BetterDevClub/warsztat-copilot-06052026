@@ -106,6 +106,7 @@ public static class RequestPasswordReset
                 .WithName("Auth.RequestPasswordReset")
                 .WithTags("Auth")
                 .WithValidation<Command>()
+                .RequireRateLimiting("auth-sensitive")
                 .AllowAnonymous();
         }
     }

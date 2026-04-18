@@ -153,6 +153,7 @@ public static class Login
                 .WithName("Auth.Login")
                 .WithTags("Auth")
                 .WithValidation<Command>()
+                .RequireRateLimiting("auth-sensitive")
                 .AllowAnonymous()
                 .Produces<Response>();
         }

@@ -128,6 +128,7 @@ public static class Refresh
                 .WithName("Auth.Refresh")
                 .WithTags("Auth")
                 .WithValidation<Command>()
+                .RequireRateLimiting("auth-sensitive")
                 .AllowAnonymous()
                 .Produces<Response>();
         }

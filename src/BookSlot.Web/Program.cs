@@ -6,6 +6,7 @@ using BookSlot.Features.Shared.Tenancy;
 using BookSlot.Web;
 using BookSlot.Infrastructure;
 using BookSlot.Infrastructure.Observability;
+using BookSlot.Infrastructure.Security;
 using BookSlot.Web.Account;
 using BookSlot.Web.Auth;
 using BookSlot.Web.Components;
@@ -105,6 +106,7 @@ builder.Services.AddBookSlotHealthChecks(builder.Configuration);
 var app = builder.Build();
 
 app.UseCorrelationId();
+app.UseSecurityHeaders();
 app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
