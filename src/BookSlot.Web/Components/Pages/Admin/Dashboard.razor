@@ -1,0 +1,196 @@
+@page "/admin"
+@page "/admin/dashboard"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireStaff")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using BookSlot.Domain.Bookings
+@using BookSlot.Domain.Abstractions
+@using BookSlot.Features.Bookings.AdminList
+@using BookSlot.Web.Hubs
+@using BookSlot.Web.Notifications
+@using Microsoft.AspNetCore.Http.Connections
+@using Microsoft.AspNetCore.SignalR.Client
+@inject AdminListBookings.Handler ListBookings
+@inject ICurrentTenant CurrentTenant
+@inject INotificationsPublisher Publisher
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@implements IAsyncDisposable
+
+<PageTitle>Admin Dashboard</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Admin Dashboard</MudText>
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_loadError</MudAlert>
+}
+
+<MudGrid Spacing="3" Class="mb-6">
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.overline">Today</MudText>
+            <MudText Typo="Typo.h3">@_todayCount</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">bookings</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.overline">Tomorrow</MudText>
+            <MudText Typo="Typo.h3">@_tomorrowCount</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">bookings</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.overline">This week</MudText>
+            <MudText Typo="Typo.h3">@_weekCount</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">total</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.overline">Live</MudText>
+            <MudText Typo="Typo.h3">
+                @(_hubState is HubConnectionState.Connected ? "ON" : "OFF")
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_hubState</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <div class="d-flex align-center mb-3">
+        <MudText Typo="Typo.h6">Today's bookings</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh" OnClick="RefreshAsync">
+            Refresh
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Class="ml-2"
+                   StartIcon="@Icons.Material.Filled.NotificationsActive" OnClick="FireTestBroadcastAsync">
+            Test broadcast
+        </MudButton>
+    </div>
+    <MudTable Items="_todayBookings" Dense="true" Hover="true" Striped="true" Bordered="false">
+        <HeaderContent>
+            <MudTh>Time</MudTh>
+            <MudTh>Guest</MudTh>
+            <MudTh>Service</MudTh>
+            <MudTh>Staff</MudTh>
+            <MudTh>Status</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.StartUtc.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)</MudTd>
+            <MudTd>@context.GuestName</MudTd>
+            <MudTd>@context.ServiceTypeName</MudTd>
+            <MudTd>@context.StaffName</MudTd>
+            <MudTd><MudChip T="string" Color="@StatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip></MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-4">No bookings scheduled for today.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private int _todayCount;
+    private int _tomorrowCount;
+    private int _weekCount;
+    private IReadOnlyList<AdminListBookings.Item> _todayBookings = Array.Empty<AdminListBookings.Item>();
+    private string? _loadError;
+    private HubConnection? _hub;
+    private HubConnectionState _hubState = HubConnectionState.Disconnected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        await StartHubAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            var nowUtc = DateTimeOffset.UtcNow;
+            var todayStart = new DateTimeOffset(nowUtc.UtcDateTime.Date, TimeSpan.Zero);
+            var tomorrowStart = todayStart.AddDays(1);
+            var dayAfter = todayStart.AddDays(2);
+            var weekEnd = todayStart.AddDays(7);
+
+            var today = await ListBookings.HandleAsync(null, null, null, todayStart, tomorrowStart, 1, 200, CancellationToken.None);
+            var tomorrow = await ListBookings.HandleAsync(null, null, null, tomorrowStart, dayAfter, 1, 1, CancellationToken.None);
+            var week = await ListBookings.HandleAsync(null, null, null, todayStart, weekEnd, 1, 1, CancellationToken.None);
+
+            _todayBookings = today.Value?.Items ?? Array.Empty<AdminListBookings.Item>();
+            _todayCount = today.Value?.TotalCount ?? 0;
+            _tomorrowCount = tomorrow.Value?.TotalCount ?? 0;
+            _weekCount = week.Value?.TotalCount ?? 0;
+            _loadError = null;
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load bookings: {ex.Message}";
+        }
+    }
+
+    private async Task StartHubAsync()
+    {
+        var tenantId = CurrentTenant.TenantId?.ToString() ?? "unknown";
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/hubs/notifications"), opts =>
+            {
+                opts.Transports = HttpTransportType.WebSockets | HttpTransportType.LongPolling;
+            })
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<BookingCreatedNotification>("booking-created", payload =>
+        {
+            Snackbar.Add($"New booking: {payload.GuestName} — {payload.ServiceName}", Severity.Info);
+            _ = InvokeAsync(RefreshAsync);
+        });
+
+        _hub.Reconnected += _ => { _hubState = HubConnectionState.Connected; return InvokeAsync(StateHasChanged); };
+        _hub.Reconnecting += _ => { _hubState = HubConnectionState.Reconnecting; return InvokeAsync(StateHasChanged); };
+        _hub.Closed += _ => { _hubState = HubConnectionState.Disconnected; return InvokeAsync(StateHasChanged); };
+
+        try
+        {
+            await _hub.StartAsync();
+            await _hub.InvokeAsync("JoinTenantAsync", tenantId);
+            _hubState = _hub.State;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"SignalR failed: {ex.Message}", Severity.Warning);
+        }
+    }
+
+    private async Task FireTestBroadcastAsync()
+    {
+        var tenantId = CurrentTenant.TenantId?.ToString() ?? "unknown";
+        await Publisher.BookingCreatedAsync(tenantId, new BookingCreatedNotification(
+            BookingId: Guid.NewGuid(),
+            GuestName: "Test Guest",
+            ServiceName: "Test service",
+            StartUtc: DateTimeOffset.UtcNow.AddHours(1)));
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Confirmed" => Color.Success,
+        "Pending" => Color.Warning,
+        "Cancelled" => Color.Error,
+        "NoShow" => Color.Dark,
+        _ => Color.Default,
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+}

@@ -1,4 +1,6 @@
 using BookSlot.Domain.Abstractions;
+using BookSlot.Features;
+using BookSlot.Features.Shared;
 using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Tenancy;
 using BookSlot.Infrastructure;
@@ -6,6 +8,8 @@ using BookSlot.Web.Account;
 using BookSlot.Web.Auth;
 using BookSlot.Web.Components;
 using BookSlot.Web.Hubs;
+using BookSlot.Web.Notifications;
+using FluentValidation;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -36,6 +40,22 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserAccessor>();
 builder.Services.Replace(ServiceDescriptor.Scoped<ICurrentUser>(
     sp => sp.GetRequiredService<CurrentUserAccessor>()));
+
+// Slice handlers + validators — scanned from the Features assembly so the Blazor
+// InteractiveServer admin pages can invoke handlers directly via scoped DI.
+builder.Services.AddFeatureHandlers();
+builder.Services.AddValidatorsFromAssembly(FeaturesAssemblyMarker.Assembly);
+builder.Services.TryAddSingleton<BookSlot.Features.Shared.Emailing.IEmailSender,
+    BookSlot.Features.Shared.Emailing.NoOpEmailSender>();
+
+// Role-based authorization policies mirror those exposed by the API (AddAuth).
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("RequireOwner", p => p.RequireRole(Roles.Owner))
+    .AddPolicy("RequireStaff", p => p.RequireRole(Roles.Owner, Roles.Staff))
+    .AddPolicy("RequireViewer", p => p.RequireRole(Roles.Owner, Roles.Staff, Roles.Viewer));
+
+// Server-side publisher for pushing hub events from slice handlers / dashboard.
+builder.Services.AddScoped<INotificationsPublisher, SignalRNotificationsPublisher>();
 
 // Cookie authentication tailored for the SSR shell. IdentityCore is already wired;
 // we only need to attach a cookie scheme so SignInManager can persist identity.
