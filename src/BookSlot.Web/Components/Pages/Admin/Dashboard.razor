@@ -129,13 +129,20 @@
 
     private async Task FireTestBroadcastAsync()
     {
-        var tenantId = CurrentTenant.TenantId?.ToString() ?? "unknown";
-        await Publisher.BookingCreatedAsync(tenantId, new BookingCreatedNotification(
-            BookingId: Guid.NewGuid(),
-            GuestName: "Test Guest",
-            ServiceName: "Test service",
-            StartUtc: DateTimeOffset.UtcNow.AddHours(1)));
-        Snackbar.Add("Broadcast sent!", Severity.Success);
+        try
+        {
+            var tenantId = CurrentTenant.TenantId?.ToString() ?? "unknown";
+            await Publisher.BookingCreatedAsync(tenantId, new BookingCreatedNotification(
+                BookingId: Guid.NewGuid(),
+                GuestName: "Test Guest",
+                ServiceName: "Test service",
+                StartUtc: DateTimeOffset.UtcNow.AddHours(1)));
+            Snackbar.Add("Broadcast sent!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Broadcast failed: {ex.Message}", Severity.Error);
+        }
     }
 
     private static Color StatusColor(string status) => status switch
