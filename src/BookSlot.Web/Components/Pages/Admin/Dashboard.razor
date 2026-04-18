@@ -8,14 +8,12 @@
 @using BookSlot.Features.Bookings.AdminList
 @using BookSlot.Web.Hubs
 @using BookSlot.Web.Notifications
-@using Microsoft.AspNetCore.Http.Connections
-@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.SignalR
 @inject AdminListBookings.Handler ListBookings
 @inject ICurrentTenant CurrentTenant
 @inject INotificationsPublisher Publisher
-@inject NavigationManager Nav
+@inject IHubContext<NotificationsHub> HubContext
 @inject ISnackbar Snackbar
-@implements IAsyncDisposable
 
 <PageTitle>Admin Dashboard</PageTitle>
 
@@ -51,10 +49,8 @@
     <MudItem xs="12" sm="6" md="3">
         <MudPaper Class="pa-4" Elevation="2">
             <MudText Typo="Typo.overline">Live</MudText>
-            <MudText Typo="Typo.h3">
-                @(_hubState is HubConnectionState.Connected ? "ON" : "OFF")
-            </MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@_hubState</MudText>
+            <MudText Typo="Typo.h3">ON</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">server-side</MudText>
         </MudPaper>
     </MudItem>
 </MudGrid>
@@ -99,13 +95,10 @@
     private int _weekCount;
     private IReadOnlyList<AdminListBookings.Item> _todayBookings = Array.Empty<AdminListBookings.Item>();
     private string? _loadError;
-    private HubConnection? _hub;
-    private HubConnectionState _hubState = HubConnectionState.Disconnected;
 
     protected override async Task OnInitializedAsync()
     {
         await RefreshAsync();
-        await StartHubAsync();
     }
 
     private async Task RefreshAsync()
@@ -134,39 +127,6 @@
         }
     }
 
-    private async Task StartHubAsync()
-    {
-        var tenantId = CurrentTenant.TenantId?.ToString() ?? "unknown";
-        _hub = new HubConnectionBuilder()
-            .WithUrl(Nav.ToAbsoluteUri("/hubs/notifications"), opts =>
-            {
-                opts.Transports = HttpTransportType.WebSockets | HttpTransportType.LongPolling;
-            })
-            .WithAutomaticReconnect()
-            .Build();
-
-        _hub.On<BookingCreatedNotification>("booking-created", payload =>
-        {
-            Snackbar.Add($"New booking: {payload.GuestName} — {payload.ServiceName}", Severity.Info);
-            _ = InvokeAsync(RefreshAsync);
-        });
-
-        _hub.Reconnected += _ => { _hubState = HubConnectionState.Connected; return InvokeAsync(StateHasChanged); };
-        _hub.Reconnecting += _ => { _hubState = HubConnectionState.Reconnecting; return InvokeAsync(StateHasChanged); };
-        _hub.Closed += _ => { _hubState = HubConnectionState.Disconnected; return InvokeAsync(StateHasChanged); };
-
-        try
-        {
-            await _hub.StartAsync();
-            await _hub.InvokeAsync("JoinTenantAsync", tenantId);
-            _hubState = _hub.State;
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"SignalR failed: {ex.Message}", Severity.Warning);
-        }
-    }
-
     private async Task FireTestBroadcastAsync()
     {
         var tenantId = CurrentTenant.TenantId?.ToString() ?? "unknown";
@@ -175,6 +135,7 @@
             GuestName: "Test Guest",
             ServiceName: "Test service",
             StartUtc: DateTimeOffset.UtcNow.AddHours(1)));
+        Snackbar.Add("Broadcast sent!", Severity.Success);
     }
 
     private static Color StatusColor(string status) => status switch
@@ -185,12 +146,4 @@
         "NoShow" => Color.Dark,
         _ => Color.Default,
     };
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_hub is not null)
-        {
-            await _hub.DisposeAsync();
-        }
-    }
 }
