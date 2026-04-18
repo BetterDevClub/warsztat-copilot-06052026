@@ -38,8 +38,8 @@ public static class Program
         // the demo tenant scope when reading; for everything else "unresolved" is correct.
         builder.Services.AddSingleton<ICurrentTenant, AmbientCurrentTenant>();
         builder.Services.AddSingleton<ICurrentUser, SystemCurrentUser>();
-        // UserManager.AddDefaultTokenProviders() resolves IDataProtectionProvider for token-based
-        // providers; provide one even though we don't issue tokens here.
+        // SignInManager needs IAuthenticationSchemeProvider; DataProtection needed by token providers.
+        builder.Services.AddAuthentication();
         builder.Services.AddDataProtection();
 
         using var host = builder.Build();
