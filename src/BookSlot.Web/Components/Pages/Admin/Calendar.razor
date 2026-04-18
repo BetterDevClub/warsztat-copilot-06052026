@@ -1,0 +1,230 @@
+@page "/admin/calendar"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireStaff")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using BookSlot.Domain.Abstractions
+@using BookSlot.Features.Bookings.AdminList
+@using BookSlot.Web.Notifications
+@inject AdminListBookings.Handler ListBookings
+@inject ICurrentTenant CurrentTenant
+@inject IBookingEventBus EventBus
+@implements IDisposable
+
+<PageTitle>Admin Calendar</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="GoPrev" Color="Color.Primary" Variant="Variant.Outlined" />
+    <MudIconButton Icon="@Icons.Material.Filled.Today" OnClick="GoToday" Color="Color.Primary" Variant="Variant.Outlined" />
+    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="GoNext" Color="Color.Primary" Variant="Variant.Outlined" />
+    <MudText Typo="Typo.h5" Class="ml-3">@RangeLabel()</MudText>
+    <MudSpacer />
+    <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Sync">Live</MudChip>
+    <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary">
+        <MudButton OnClick="@(() => SetView(CalendarView.Day))" Color="@(_view == CalendarView.Day ? Color.Primary : Color.Default)">Day</MudButton>
+        <MudButton OnClick="@(() => SetView(CalendarView.Week))" Color="@(_view == CalendarView.Week ? Color.Primary : Color.Default)">Week</MudButton>
+        <MudButton OnClick="@(() => SetView(CalendarView.Month))" Color="@(_view == CalendarView.Month ? Color.Primary : Color.Default)">Month</MudButton>
+    </MudButtonGroup>
+    <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync" Color="Color.Primary" Variant="Variant.Filled" />
+</MudStack>
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3">@_loadError</MudAlert>
+}
+
+<MudPaper Elevation="1" Class="pa-2" Style="overflow:auto;">
+    @switch (_view)
+    {
+        case CalendarView.Day:
+            <DayWeekGrid Days="_days.Take(1).ToList()" Bookings="_bookings" OnSelect="OpenDetails" />
+            break;
+        case CalendarView.Week:
+            <DayWeekGrid Days="_days" Bookings="_bookings" OnSelect="OpenDetails" />
+            break;
+        case CalendarView.Month:
+            <MonthGrid AnchorDate="_anchor" Bookings="_bookings" OnSelect="OpenDetails" />
+            break;
+    }
+</MudPaper>
+
+<MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.End" Elevation="3" Variant="DrawerVariant.Temporary" Width="380px">
+    @if (_selected is not null)
+    {
+        <MudPaper Class="pa-4" Elevation="0" Square="true">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                <MudText Typo="Typo.h6">Booking details</MudText>
+                <MudSpacer />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _drawerOpen = false)" />
+            </MudStack>
+            <MudChip T="string" Style="@($"background:{ColorFor(_selected.ServiceTypeId)};color:#fff;")" Size="Size.Small" Class="mb-3">
+                @_selected.ServiceTypeName
+            </MudChip>
+            <MudText Typo="Typo.subtitle2" Class="mt-2">When</MudText>
+            <MudText Typo="Typo.body2">
+                @_selected.StartUtc.ToLocalTime().ToString("ddd, dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)
+                –
+                @_selected.EndUtc.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)
+            </MudText>
+            <MudText Typo="Typo.subtitle2" Class="mt-3">Guest</MudText>
+            <MudText Typo="Typo.body2">@_selected.GuestName</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@_selected.GuestEmail</MudText>
+            <MudText Typo="Typo.subtitle2" Class="mt-3">Staff</MudText>
+            <MudText Typo="Typo.body2">@_selected.StaffName</MudText>
+            <MudText Typo="Typo.subtitle2" Class="mt-3">Status</MudText>
+            <MudChip T="string" Color="@StatusColor(_selected.Status)" Size="Size.Small">@_selected.Status</MudChip>
+            <MudText Typo="Typo.caption" Class="d-block mt-4" Color="Color.Secondary">
+                Created @_selected.CreatedAt.ToLocalTime().ToString("g", CultureInfo.InvariantCulture)
+            </MudText>
+        </MudPaper>
+    }
+</MudDrawer>
+
+@code {
+    private enum CalendarView { Day, Week, Month }
+
+    private CalendarView _view = CalendarView.Week;
+    private DateTime _anchor = DateTime.Today;
+    private IReadOnlyList<DateTime> _days = Array.Empty<DateTime>();
+    private IReadOnlyList<AdminListBookings.Item> _bookings = Array.Empty<AdminListBookings.Item>();
+    private AdminListBookings.Item? _selected;
+    private bool _drawerOpen;
+    private string? _loadError;
+    private IDisposable? _subscription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        RecomputeRange();
+        await LoadAsync();
+        var tenantId = CurrentTenant.TenantId?.ToString();
+        if (!string.IsNullOrEmpty(tenantId))
+        {
+            _subscription = EventBus.Subscribe(tenantId, async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadAsync();
+                    StateHasChanged();
+                });
+            });
+        }
+    }
+
+    public void Dispose() => _subscription?.Dispose();
+
+    private void RecomputeRange()
+    {
+        switch (_view)
+        {
+            case CalendarView.Day:
+                _days = new[] { _anchor.Date };
+                break;
+            case CalendarView.Week:
+            {
+                var start = _anchor.Date.AddDays(-(int)(((int)_anchor.DayOfWeek + 6) % 7)); // Monday-first
+                _days = Enumerable.Range(0, 7).Select(i => start.AddDays(i)).ToList();
+                break;
+            }
+            case CalendarView.Month:
+                _days = Array.Empty<DateTime>();
+                break;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            DateTimeOffset from, to;
+            if (_view == CalendarView.Month)
+            {
+                var first = new DateTime(_anchor.Year, _anchor.Month, 1, 0, 0, 0, DateTimeKind.Local);
+                from = new DateTimeOffset(first.AddDays(-(int)(((int)first.DayOfWeek + 6) % 7))).ToUniversalTime();
+                to = from.AddDays(42);
+            }
+            else
+            {
+                from = new DateTimeOffset(_days[0], TimeZoneInfo.Local.GetUtcOffset(_days[0])).ToUniversalTime();
+                to = new DateTimeOffset(_days[^1].AddDays(1), TimeZoneInfo.Local.GetUtcOffset(_days[^1].AddDays(1))).ToUniversalTime();
+            }
+            var result = await ListBookings.HandleAsync(null, null, null, from, to, 1, 200, CancellationToken.None);
+            _bookings = result.Value?.Items ?? Array.Empty<AdminListBookings.Item>();
+            _loadError = null;
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load bookings: {ex.Message}";
+            _bookings = Array.Empty<AdminListBookings.Item>();
+        }
+    }
+
+    private async Task SetView(CalendarView v)
+    {
+        _view = v;
+        RecomputeRange();
+        await LoadAsync();
+    }
+
+    private async Task GoPrev()
+    {
+        _anchor = _view switch
+        {
+            CalendarView.Day => _anchor.AddDays(-1),
+            CalendarView.Week => _anchor.AddDays(-7),
+            CalendarView.Month => _anchor.AddMonths(-1),
+            _ => _anchor
+        };
+        RecomputeRange();
+        await LoadAsync();
+    }
+
+    private async Task GoNext()
+    {
+        _anchor = _view switch
+        {
+            CalendarView.Day => _anchor.AddDays(1),
+            CalendarView.Week => _anchor.AddDays(7),
+            CalendarView.Month => _anchor.AddMonths(1),
+            _ => _anchor
+        };
+        RecomputeRange();
+        await LoadAsync();
+    }
+
+    private async Task GoToday()
+    {
+        _anchor = DateTime.Today;
+        RecomputeRange();
+        await LoadAsync();
+    }
+
+    private string RangeLabel() => _view switch
+    {
+        CalendarView.Day => _anchor.ToString("ddd, dd MMM yyyy", CultureInfo.InvariantCulture),
+        CalendarView.Week => $"{_days[0]:dd MMM} – {_days[^1]:dd MMM yyyy}",
+        CalendarView.Month => _anchor.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+        _ => string.Empty,
+    };
+
+    private void OpenDetails(AdminListBookings.Item item)
+    {
+        _selected = item;
+        _drawerOpen = true;
+    }
+
+    internal static string ColorFor(Guid serviceTypeId)
+    {
+        // deterministic HSL color from GUID; pleasant saturation/lightness
+        var hash = serviceTypeId.GetHashCode();
+        var hue = (Math.Abs(hash) % 360);
+        return $"hsl({hue},65%,45%)";
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Confirmed" => Color.Success,
+        "Pending" => Color.Warning,
+        "Cancelled" => Color.Error,
+        "NoShow" => Color.Dark,
+        _ => Color.Default,
+    };
+}

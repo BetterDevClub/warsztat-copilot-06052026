@@ -56,6 +56,7 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("RequireViewer", p => p.RequireRole(Roles.Owner, Roles.Staff, Roles.Viewer));
 
 // Server-side publisher for pushing hub events from slice handlers / dashboard.
+builder.Services.AddSingleton<IBookingEventBus, InMemoryBookingEventBus>();
 builder.Services.AddScoped<INotificationsPublisher, SignalRNotificationsPublisher>();
 
 // Cookie authentication tailored for the SSR shell. IdentityCore is already wired;

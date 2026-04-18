@@ -23,13 +23,24 @@ public sealed record BookingCreatedNotification(
 internal sealed class SignalRNotificationsPublisher : INotificationsPublisher
 {
     private readonly IHubContext<NotificationsHub> _hub;
-    public SignalRNotificationsPublisher(IHubContext<NotificationsHub> hub) => _hub = hub;
+    private readonly IBookingEventBus _bus;
+    public SignalRNotificationsPublisher(IHubContext<NotificationsHub> hub, IBookingEventBus bus)
+    {
+        _hub = hub;
+        _bus = bus;
+    }
 
-    public Task BookingCreatedAsync(string tenantId, BookingCreatedNotification payload, CancellationToken ct = default) =>
-        _hub.Clients.Group(NotificationsHub.TenantGroup(tenantId))
-            .SendAsync("booking-created", payload, ct);
+    public async Task BookingCreatedAsync(string tenantId, BookingCreatedNotification payload, CancellationToken ct = default)
+    {
+        await _hub.Clients.Group(NotificationsHub.TenantGroup(tenantId))
+            .SendAsync("booking-created", payload, ct).ConfigureAwait(false);
+        await _bus.PublishAsync(tenantId, new BookingEvent("booking-created", payload.BookingId, payload), ct).ConfigureAwait(false);
+    }
 
-    public Task BroadcastAsync(string tenantId, string eventName, object payload, CancellationToken ct = default) =>
-        _hub.Clients.Group(NotificationsHub.TenantGroup(tenantId))
-            .SendAsync(eventName, payload, ct);
+    public async Task BroadcastAsync(string tenantId, string eventName, object payload, CancellationToken ct = default)
+    {
+        await _hub.Clients.Group(NotificationsHub.TenantGroup(tenantId))
+            .SendAsync(eventName, payload, ct).ConfigureAwait(false);
+        await _bus.PublishAsync(tenantId, new BookingEvent(eventName, null, payload), ct).ConfigureAwait(false);
+    }
 }

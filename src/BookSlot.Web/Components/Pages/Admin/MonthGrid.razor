@@ -1,0 +1,48 @@
+@using System.Globalization
+@using BookSlot.Features.Bookings.AdminList
+
+@{
+    var firstOfMonth = new DateTime(AnchorDate.Year, AnchorDate.Month, 1);
+    var gridStart = firstOfMonth.AddDays(-(int)(((int)firstOfMonth.DayOfWeek + 6) % 7));
+    var days = Enumerable.Range(0, 42).Select(i => gridStart.AddDays(i)).ToList();
+    var dayNames = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+}
+
+<div style="display:grid; grid-template-columns: repeat(7, 1fr); border:1px solid var(--mud-palette-lines-default);">
+    @foreach (var dn in dayNames)
+    {
+        <div style="text-align:center; font-weight:600; padding:6px; border-left:1px solid var(--mud-palette-lines-default);">@dn</div>
+    }
+    @foreach (var d in days)
+    {
+        var inMonth = d.Month == AnchorDate.Month;
+        var isToday = d.Date == DateTime.Today;
+        var bookings = BookingsOn(d).ToList();
+        <div style="min-height:110px; border-top:1px solid var(--mud-palette-lines-default); border-left:1px solid var(--mud-palette-lines-default); padding:4px; background:@(inMonth ? "transparent" : "var(--mud-palette-background-grey)");">
+            <div style="font-size:12px; font-weight:@(isToday ? "700" : "500"); color:@(isToday ? "var(--mud-palette-primary)" : (inMonth ? "var(--mud-palette-text-primary)" : "var(--mud-palette-text-secondary)"));">
+                @d.Day
+            </div>
+            @foreach (var b in bookings.Take(3))
+            {
+                <div role="button" tabindex="0" @onclick="@(() => OnSelect.InvokeAsync(b))"
+                     style="margin-top:2px; background:@Calendar.ColorFor(b.ServiceTypeId); color:#fff; padding:1px 4px; border-radius:3px; font-size:11px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+                    @b.StartUtc.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) @b.GuestName
+                </div>
+            }
+            @if (bookings.Count > 3)
+            {
+                <div style="font-size:11px; color:var(--mud-palette-text-secondary); margin-top:2px;">+@(bookings.Count - 3) more</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public DateTime AnchorDate { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<AdminListBookings.Item> Bookings { get; set; } = Array.Empty<AdminListBookings.Item>();
+    [Parameter] public EventCallback<AdminListBookings.Item> OnSelect { get; set; }
+
+    private IEnumerable<AdminListBookings.Item> BookingsOn(DateTime day) =>
+        Bookings.Where(b => b.StartUtc.ToLocalTime().Date == day.Date)
+                .OrderBy(b => b.StartUtc);
+}

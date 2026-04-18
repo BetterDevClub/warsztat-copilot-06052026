@@ -1,0 +1,73 @@
+@using System.Globalization
+@using BookSlot.Features.Bookings.AdminList
+
+@{
+    const int startHour = 7;
+    const int endHour = 21;
+    const int slotMinutes = 30;
+    var totalSlots = (endHour - startHour) * 60 / slotMinutes;
+    var slotPx = 22; // each 30 min cell height
+}
+
+<div class="bs-cal-grid" style="display:grid; grid-template-columns: 60px repeat(@Days.Count, 1fr); border:1px solid var(--mud-palette-lines-default);">
+    <div></div>
+    @foreach (var d in Days)
+    {
+        <div style="text-align:center; font-weight:600; padding:6px; border-left:1px solid var(--mud-palette-lines-default);">
+            @d.ToString("ddd dd MMM", CultureInfo.InvariantCulture)
+        </div>
+    }
+    <div style="position:relative;">
+        @for (var s = 0; s < totalSlots; s++)
+        {
+            var minutes = s * slotMinutes;
+            var hour = startHour + minutes / 60;
+            var min = minutes % 60;
+            <div style="height:@(slotPx)px; font-size:11px; text-align:right; padding-right:4px; color:var(--mud-palette-text-secondary); border-top:1px solid var(--mud-palette-lines-default);">
+                @if (min == 0) { <text>@hour.ToString("D2"):00</text> }
+            </div>
+        }
+    </div>
+    @foreach (var d in Days)
+    {
+        <div style="position:relative; border-left:1px solid var(--mud-palette-lines-default);">
+            @for (var s = 0; s < totalSlots; s++)
+            {
+                <div style="height:@(slotPx)px; border-top:1px solid var(--mud-palette-lines-default);"></div>
+            }
+            @foreach (var b in BookingsOn(d))
+            {
+                var (top, height) = Layout(b, startHour, slotMinutes, slotPx);
+                if (height <= 0) continue;
+                <div role="button" tabindex="0" @onclick="@(() => OnSelect.InvokeAsync(b))"
+                     title="@b.GuestName • @b.ServiceTypeName"
+                     style="position:absolute; left:2px; right:2px; top:@(top)px; height:@(height)px; background:@Calendar.ColorFor(b.ServiceTypeId); color:#fff; border-radius:4px; padding:2px 6px; overflow:hidden; cursor:pointer; font-size:12px;">
+                    <strong>@b.StartUtc.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)</strong>
+                    @b.GuestName
+                    <div style="opacity:0.85;">@b.ServiceTypeName</div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<DateTime> Days { get; set; } = Array.Empty<DateTime>();
+    [Parameter, EditorRequired] public IReadOnlyList<AdminListBookings.Item> Bookings { get; set; } = Array.Empty<AdminListBookings.Item>();
+    [Parameter] public EventCallback<AdminListBookings.Item> OnSelect { get; set; }
+
+    private IEnumerable<AdminListBookings.Item> BookingsOn(DateTime day) =>
+        Bookings.Where(b => b.StartUtc.ToLocalTime().Date == day.Date)
+                .OrderBy(b => b.StartUtc);
+
+    private static (int top, int height) Layout(AdminListBookings.Item b, int startHour, int slotMinutes, int slotPx)
+    {
+        var local = b.StartUtc.ToLocalTime();
+        var minutesFromStart = (local.Hour - startHour) * 60 + local.Minute;
+        var durationMin = (int)(b.EndUtc - b.StartUtc).TotalMinutes;
+        var top = minutesFromStart * slotPx / slotMinutes;
+        var height = Math.Max(durationMin * slotPx / slotMinutes - 1, 16);
+        if (top < 0) { height += top; top = 0; }
+        return (top, height);
+    }
+}
