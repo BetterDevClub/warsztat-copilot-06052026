@@ -1,0 +1,104 @@
+@page "/admin/services"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireOwner")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using BookSlot.Features.ServiceTypes.Create
+@using BookSlot.Features.ServiceTypes.Deactivate
+@using BookSlot.Features.ServiceTypes.List
+@inject ListServiceTypes.Handler ListHandler
+@inject CreateServiceType.Handler CreateHandler
+@inject DeactivateServiceType.Handler DeactivateHandler
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Services</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Services</MudText>
+    <MudSpacer />
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">New service</MudButton>
+</MudStack>
+
+@if (_error is not null) { <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert> }
+
+<MudTable Items="_items" Dense="true" Hover="true" Loading="_loading" LoadingProgressColor="Color.Primary">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Slug</MudTh>
+        <MudTh Style="text-align:right">Duration</MudTh>
+        <MudTh Style="text-align:right">Price</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh Style="text-align:right">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Name</MudTd>
+        <MudTd><code>@context.Slug</code></MudTd>
+        <MudTd Style="text-align:right">@context.DurationMinutes min</MudTd>
+        <MudTd Style="text-align:right">@context.Price.ToString("0.00", CultureInfo.InvariantCulture) @context.Currency</MudTd>
+        <MudTd>
+            @if (context.IsActive) { <MudChip T="string" Color="Color.Success" Size="Size.Small">Active</MudChip> }
+            else { <MudChip T="string" Color="Color.Default" Size="Size.Small">Inactive</MudChip> }
+        </MudTd>
+        <MudTd Style="text-align:right">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                           OnClick="@(() => Nav.NavigateTo($"/admin/services/{context.Id}"))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           Disabled="@(!context.IsActive)" OnClick="@(() => DeactivateAsync(context))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent><MudText Class="pa-4">No services yet.</MudText></NoRecordsContent>
+</MudTable>
+
+@code {
+    private IReadOnlyList<ListServiceTypes.Item> _items = Array.Empty<ListServiceTypes.Item>();
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var res = await ListHandler.HandleAsync(true, CancellationToken.None);
+            _items = res.Value?.Items ?? Array.Empty<ListServiceTypes.Item>();
+            _error = res.IsFailure ? res.Error.Message : null;
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenCreate()
+    {
+        var dlg = await Dialog.ShowAsync<CreateServiceDialog>("New service");
+        var res = await dlg.Result;
+        if (res is { Canceled: false, Data: CreateServiceType.Command cmd })
+        {
+            var result = await CreateHandler.HandleAsync(cmd, CancellationToken.None);
+            if (result.IsSuccess)
+            {
+                Snackbar.Add("Service created.", Severity.Success);
+                Nav.NavigateTo($"/admin/services/{result.Value!.Id}");
+            }
+            else Snackbar.Add(result.Error.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeactivateAsync(ListServiceTypes.Item item)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Deactivate service?" },
+            { x => x.Message, $"Deactivate '{item.Name}'? It will be hidden from public booking but remain in reports." },
+            { x => x.ConfirmText, "Deactivate" },
+            { x => x.ConfirmColor, Color.Error },
+        };
+        var dlg = await Dialog.ShowAsync<ConfirmDialog>("Deactivate?", parameters);
+        var res = await dlg.Result;
+        if (res is null || res.Canceled) return;
+        var result = await DeactivateHandler.HandleAsync(item.Id, CancellationToken.None);
+        if (result.IsSuccess) { Snackbar.Add("Deactivated.", Severity.Success); await LoadAsync(); }
+        else Snackbar.Add(result.Error.Message, Severity.Error);
+    }
+}

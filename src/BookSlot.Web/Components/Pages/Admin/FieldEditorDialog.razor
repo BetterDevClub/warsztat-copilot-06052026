@@ -1,0 +1,105 @@
+@namespace BookSlot.Web.Components.Pages.Admin
+@using BookSlot.Domain.Services
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_label" Label="Label" Required="true" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_key" Label="Key (a-z 0-9 _ -)" Required="true" Disabled="@(_keyLocked)" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_type" Label="Type" Dense="true">
+                    @foreach (var t in Enum.GetValues<BookingFormFieldType>())
+                    {
+                        <MudSelectItem Value="@t">@t</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" Class="d-flex align-center">
+                <MudCheckBox T="bool" Value="_required" ValueChanged="@(v => _required = v)" Label="Required" />
+            </MudItem>
+            @if (_type is BookingFormFieldType.Text or BookingFormFieldType.TextArea)
+            {
+                <MudItem xs="6"><MudNumericField T="int?" @bind-Value="_minLength" Label="Min length" Min="0" /></MudItem>
+                <MudItem xs="6"><MudNumericField T="int?" @bind-Value="_maxLength" Label="Max length" Min="1" /></MudItem>
+            }
+            else if (_type == BookingFormFieldType.Number)
+            {
+                <MudItem xs="6"><MudNumericField T="decimal?" @bind-Value="_min" Label="Min" /></MudItem>
+                <MudItem xs="6"><MudNumericField T="decimal?" @bind-Value="_max" Label="Max" /></MudItem>
+            }
+            else if (_type == BookingFormFieldType.Select)
+            {
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_optionsRaw" Label="Options (one per line)" Lines="4" />
+                </MudItem>
+            }
+        </MudGrid>
+        @if (_error is not null) { <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_error</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public BookingFormField? Initial { get; set; }
+
+    private string _label = string.Empty;
+    private string _key = string.Empty;
+    private BookingFormFieldType _type = BookingFormFieldType.Text;
+    private bool _required;
+    private int? _minLength;
+    private int? _maxLength;
+    private decimal? _min;
+    private decimal? _max;
+    private string? _optionsRaw;
+    private bool _keyLocked;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Initial is not null)
+        {
+            _label = Initial.Label;
+            _key = Initial.Key;
+            _type = Initial.Type;
+            _required = Initial.Required;
+            _minLength = Initial.MinLength;
+            _maxLength = Initial.MaxLength;
+            _min = Initial.Min;
+            _max = Initial.Max;
+            _optionsRaw = Initial.Options is null ? null : string.Join('\n', Initial.Options);
+            _keyLocked = true;
+        }
+    }
+
+    private void Ok()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_label)) { _error = "Label is required."; return; }
+        if (string.IsNullOrWhiteSpace(_key)) { _error = "Key is required."; return; }
+        foreach (var c in _key)
+            if (!char.IsLetterOrDigit(c) && c != '_' && c != '-') { _error = "Key may only contain letters, digits, '_' or '-'."; return; }
+
+        IReadOnlyList<string>? opts = null;
+        if (_type == BookingFormFieldType.Select)
+        {
+            opts = (_optionsRaw ?? string.Empty)
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            if (opts.Count == 0) { _error = "Select needs at least one option."; return; }
+        }
+
+        var f = new BookingFormField(_key.Trim(), _label.Trim(), _type, _required,
+            _type is BookingFormFieldType.Text or BookingFormFieldType.TextArea ? _minLength : null,
+            _type is BookingFormFieldType.Text or BookingFormFieldType.TextArea ? _maxLength : null,
+            _type == BookingFormFieldType.Number ? _min : null,
+            _type == BookingFormFieldType.Number ? _max : null,
+            opts);
+        MudDialog.Close(DialogResult.Ok(f));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

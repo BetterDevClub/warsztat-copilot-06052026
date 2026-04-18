@@ -1,0 +1,245 @@
+@page "/admin/services/{Id:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireOwner")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using System.Text.Json
+@using BookSlot.Domain.Services
+@using BookSlot.Features.ServiceTypes.GetById
+@using BookSlot.Features.ServiceTypes.SetFormSchema
+@using BookSlot.Features.ServiceTypes.Update
+@inject GetServiceTypeById.Handler GetHandler
+@inject UpdateServiceType.Handler UpdateHandler
+@inject SetServiceTypeFormSchema.Handler SetSchemaHandler
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject NavigationManager Nav
+
+<PageTitle>Edit service</PageTitle>
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error">@_loadError</MudAlert>
+}
+else if (_data is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/admin/services"))" />
+        <MudText Typo="Typo.h5">@_data.Name</MudText>
+        <MudChip T="string" Size="Size.Small" Color="@(_data.IsActive ? Color.Success : Color.Default)">@(_data.IsActive ? "Active" : "Inactive")</MudChip>
+        <MudSpacer />
+        <code>@_data.Slug</code>
+    </MudStack>
+
+    <MudTabs Elevation="1" Rounded="true">
+        <MudTabPanel Text="Details" Icon="@Icons.Material.Filled.Info">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_name" Label="Name" /></MudItem>
+                <MudItem xs="6" sm="3"><MudNumericField @bind-Value="_duration" Label="Duration (min)" Min="5" Max="1440" /></MudItem>
+                <MudItem xs="6" sm="3"><MudNumericField @bind-Value="_price" Label="Price" Min="0" /></MudItem>
+                <MudItem xs="6" sm="3"><MudNumericField @bind-Value="_bufferBefore" Label="Buffer before" Min="0" Max="240" /></MudItem>
+                <MudItem xs="6" sm="3"><MudNumericField @bind-Value="_bufferAfter" Label="Buffer after" Min="0" Max="240" /></MudItem>
+                <MudItem xs="6" sm="3"><MudTextField @bind-Value="_currency" Label="Currency" MaxLength="3" /></MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="_description" Label="Description" Lines="3" /></MudItem>
+            </MudGrid>
+            <MudButton Class="mt-3" Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDetails">Save details</MudButton>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Form builder" Icon="@Icons.Material.Filled.ListAlt">
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="7">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+                        <MudText Typo="Typo.h6">Custom fields (@_fields.Count / @BookingFormSchema.MaxFields)</MudText>
+                        <MudSpacer />
+                        <MudButton Color="Color.Primary" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                                   Disabled="@(_fields.Count >= BookingFormSchema.MaxFields)" OnClick="AddField">Add field</MudButton>
+                    </MudStack>
+                    @if (_fields.Count == 0)
+                    {
+                        <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                            <MudText Color="Color.Secondary">No custom fields. Click 'Add field' to extend the booking form.</MudText>
+                        </MudPaper>
+                    }
+                    @for (var i = 0; i < _fields.Count; i++)
+                    {
+                        var idx = i;
+                        var f = _fields[idx];
+                        <MudPaper Class="pa-3 mb-2" Outlined="true">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small"
+                                               Disabled="@(idx == 0)" OnClick="@(() => Move(idx, -1))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small"
+                                               Disabled="@(idx == _fields.Count - 1)" OnClick="@(() => Move(idx, 1))" />
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info">@f.Type</MudChip>
+                                <MudText><strong>@f.Label</strong></MudText>
+                                @if (f.Required) { <MudChip T="string" Size="Size.Small" Color="Color.Error">required</MudChip> }
+                                <MudSpacer />
+                                <code>@f.Key</code>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditField(idx))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveField(idx))" />
+                            </MudStack>
+                        </MudPaper>
+                    }
+                    <MudStack Row="true" Class="mt-3">
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveSchema">Save schema</MudButton>
+                        <MudButton Color="Color.Default" Variant="Variant.Outlined" Disabled="@(_fields.Count == 0)" OnClick="ClearSchema">Clear</MudButton>
+                        <MudSpacer />
+                        @if (_schemaError is not null) { <MudAlert Severity="Severity.Error" Dense="true">@_schemaError</MudAlert> }
+                    </MudStack>
+                </MudItem>
+
+                <MudItem xs="12" md="5">
+                    <MudText Typo="Typo.h6" Class="mb-2">Live preview</MudText>
+                    <MudPaper Class="pa-4" Outlined="true">
+                        @if (_fields.Count == 0)
+                        {
+                            <MudText Color="Color.Secondary">Add fields to see the preview.</MudText>
+                        }
+                        else
+                        {
+                            <BookingFormPreview Fields="_fields" />
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private GetServiceTypeById.Response? _data;
+    private string? _loadError;
+
+    private string _name = string.Empty;
+    private int _duration;
+    private int _bufferBefore;
+    private int _bufferAfter;
+    private decimal _price;
+    private string _currency = "PLN";
+    private string? _description;
+
+    private List<BookingFormField> _fields = new();
+    private string? _schemaError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var res = await GetHandler.HandleAsync(Id, CancellationToken.None);
+        if (res.IsFailure) { _loadError = res.Error.Message; return; }
+        _data = res.Value!;
+        _name = _data.Name; _duration = _data.DurationMinutes;
+        _bufferBefore = _data.BufferBeforeMinutes; _bufferAfter = _data.BufferAfterMinutes;
+        _price = _data.Price; _currency = _data.Currency; _description = _data.Description;
+
+        // Load existing form schema directly from the entity via GetById doesn't include FormSchemaJson,
+        // so call the public schema endpoint via handler. But we can read via the dedicated handler.
+        await LoadSchemaAsync();
+    }
+
+    [Inject] private BookSlot.Features.ServiceTypes.GetFormSchema.GetServiceTypeFormSchema.Handler SchemaHandler { get; set; } = null!;
+
+    private async Task LoadSchemaAsync()
+    {
+        var s = await SchemaHandler.HandleAsync(Id, CancellationToken.None);
+        if (s?.SchemaJson is { Length: > 0 } json)
+        {
+            var parsed = BookingFormSchema.Parse(json);
+            if (parsed.IsSuccess) _fields = parsed.Value.Fields.ToList();
+        }
+        else
+        {
+            _fields = new();
+        }
+    }
+
+    private async Task SaveDetails()
+    {
+        var cmd = new UpdateServiceType.Command(_name, _duration, _bufferBefore, _bufferAfter, _price, _currency, _description);
+        var res = await UpdateHandler.HandleAsync(Id, cmd, CancellationToken.None);
+        if (res.IsSuccess) { Snackbar.Add("Saved.", Severity.Success); await LoadAsync(); }
+        else Snackbar.Add(res.Error.Message, Severity.Error);
+    }
+
+    private void Move(int idx, int delta)
+    {
+        var ni = idx + delta;
+        if (ni < 0 || ni >= _fields.Count) return;
+        (_fields[idx], _fields[ni]) = (_fields[ni], _fields[idx]);
+    }
+
+    private void RemoveField(int idx) => _fields.RemoveAt(idx);
+
+    private async Task AddField()
+    {
+        var dlg = await Dialog.ShowAsync<FieldEditorDialog>("Add field");
+        var res = await dlg.Result;
+        if (res is { Canceled: false, Data: BookingFormField f })
+        {
+            if (_fields.Any(x => string.Equals(x.Key, f.Key, StringComparison.OrdinalIgnoreCase)))
+            {
+                Snackbar.Add($"Key '{f.Key}' already exists.", Severity.Error);
+                return;
+            }
+            _fields.Add(f);
+        }
+    }
+
+    private async Task EditField(int idx)
+    {
+        var current = _fields[idx];
+        var parameters = new DialogParameters<FieldEditorDialog>
+        {
+            { x => x.Initial, current },
+        };
+        var dlg = await Dialog.ShowAsync<FieldEditorDialog>("Edit field", parameters);
+        var res = await dlg.Result;
+        if (res is { Canceled: false, Data: BookingFormField f })
+        {
+            if (!string.Equals(current.Key, f.Key, StringComparison.OrdinalIgnoreCase)
+                && _fields.Any(x => string.Equals(x.Key, f.Key, StringComparison.OrdinalIgnoreCase)))
+            {
+                Snackbar.Add($"Key '{f.Key}' already exists.", Severity.Error);
+                return;
+            }
+            _fields[idx] = f;
+        }
+    }
+
+    private async Task SaveSchema()
+    {
+        _schemaError = null;
+        var json = SerializeSchema(_fields);
+        var res = await SetSchemaHandler.HandleAsync(Id, new SetServiceTypeFormSchema.Command(json), CancellationToken.None);
+        if (res.IsSuccess) Snackbar.Add($"Saved {res.Value!.FieldCount} fields.", Severity.Success);
+        else _schemaError = res.Error.Message;
+    }
+
+    private async Task ClearSchema()
+    {
+        var res = await SetSchemaHandler.HandleAsync(Id, new SetServiceTypeFormSchema.Command(null), CancellationToken.None);
+        if (res.IsSuccess) { _fields.Clear(); Snackbar.Add("Schema cleared.", Severity.Success); }
+        else Snackbar.Add(res.Error.Message, Severity.Error);
+    }
+
+    private static string SerializeSchema(IReadOnlyList<BookingFormField> fields)
+    {
+        var arr = fields.Select(f => new Dictionary<string, object?>
+        {
+            ["key"] = f.Key,
+            ["label"] = f.Label,
+            ["type"] = f.Type.ToString(),
+            ["required"] = f.Required,
+            ["minLength"] = f.MinLength,
+            ["maxLength"] = f.MaxLength,
+            ["min"] = f.Min,
+            ["max"] = f.Max,
+            ["options"] = f.Options,
+        });
+        return JsonSerializer.Serialize(new { fields = arr });
+    }
+}

@@ -1,0 +1,34 @@
+@namespace BookSlot.Web.Components.Pages.Admin
+@using BookSlot.Domain.Services
+
+@foreach (var f in Fields)
+{
+    var label = f.Label + (f.Required ? " *" : "");
+    switch (f.Type)
+    {
+        case BookingFormFieldType.Text:
+            <MudTextField T="string" Label="@label" Class="mb-2" />
+            break;
+        case BookingFormFieldType.TextArea:
+            <MudTextField T="string" Label="@label" Lines="3" Class="mb-2" />
+            break;
+        case BookingFormFieldType.Number:
+            <MudNumericField T="decimal?" Label="@label" Class="mb-2" />
+            break;
+        case BookingFormFieldType.Checkbox:
+            <MudCheckBox T="bool" Label="@label" Class="mb-2" />
+            break;
+        case BookingFormFieldType.Select:
+            <MudSelect T="string" Label="@label" Dense="true" Class="mb-2">
+                @if (f.Options is not null)
+                {
+                    @foreach (var o in f.Options) { <MudSelectItem Value="@o">@o</MudSelectItem> }
+                }
+            </MudSelect>
+            break;
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BookingFormField> Fields { get; set; } = Array.Empty<BookingFormField>();
+}
