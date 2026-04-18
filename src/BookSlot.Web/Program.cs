@@ -3,6 +3,7 @@ using BookSlot.Features;
 using BookSlot.Features.Shared;
 using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Tenancy;
+using BookSlot.Web;
 using BookSlot.Infrastructure;
 using BookSlot.Web.Account;
 using BookSlot.Web.Auth;
@@ -83,6 +84,12 @@ var redisConn = builder.Configuration.GetConnectionString("Redis");
 if (!string.IsNullOrWhiteSpace(redisConn))
 {
     signalR.AddStackExchangeRedis(redisConn, opts => opts.Configuration.ChannelPrefix = RedisChannel.Literal("bookslot"));
+}
+
+// Seed demo tenant + users (Owner/Staff) in Development only.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddHostedService<DevDataSeeder>();
 }
 
 var app = builder.Build();
