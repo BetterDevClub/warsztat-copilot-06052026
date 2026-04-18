@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using BookSlot.Features;
+using BookSlot.Features.Shared;
 using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Endpoints;
 using BookSlot.Features.Shared.Tenancy;
@@ -52,8 +53,9 @@ builder.Services.AddRateLimiter(options =>
 // CORS for browser callers (booking widgets); origins come from Cors:AllowedOrigins.
 builder.Services.AddBookSlotCors(builder.Configuration, builder.Environment);
 
-// VSA wire-up: auto-register endpoints and validators from the Features assembly.
+// VSA wire-up: auto-register endpoints, handlers and validators from the Features assembly.
 builder.Services.AddEndpoints(FeaturesAssemblyMarker.Assembly);
+builder.Services.AddFeatureHandlers();
 builder.Services.AddValidatorsFromAssembly(FeaturesAssemblyMarker.Assembly);
 
 // Infrastructure first (registers JwtOptions, Identity, DbContext). Tenancy sets up
