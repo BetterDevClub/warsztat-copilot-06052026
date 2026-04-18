@@ -24,11 +24,19 @@ public static class WorkerDependencyInjection
         services.AddSingleton<ILeaderElection, PostgresAdvisoryLockLeaderElection>();
         services.AddHostedService<JobScheduler>();
 
+        // HttpClient factory for outbound integrations (webhook delivery, Google OAuth).
+        services.AddHttpClient();
+
         // Phase 21 — booking-lifecycle jobs. Each one is scoped so it gets a
         // fresh AppDbContext per tick via JobScheduler's per-tick service scope.
         services.AddScoped<Jobs.IWorkerJob, Jobs.SlotLockCleanerJob>();
         services.AddScoped<Jobs.IWorkerJob, Jobs.ReminderDispatcherJob>();
         services.AddScoped<Jobs.IWorkerJob, Jobs.NoShowMarkerJob>();
+
+        // Phase 22 — integration jobs.
+        services.AddScoped<Jobs.IWorkerJob, Jobs.OutboxFanoutJob>();
+        services.AddScoped<Jobs.IWorkerJob, Jobs.WebhookDeliveryJob>();
+        services.AddScoped<Jobs.IWorkerJob, Jobs.GoogleCalendarTokenRefreshJob>();
 
         return services;
     }
