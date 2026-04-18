@@ -3,8 +3,10 @@ using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Tenancy;
 using BookSlot.Infrastructure;
 using BookSlot.Web.Account;
+using BookSlot.Web.Auth;
 using BookSlot.Web.Components;
 using BookSlot.Web.Hubs;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MudBlazor.Services;
@@ -52,6 +54,7 @@ builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     });
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, PersistingServerAuthenticationStateProvider>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 
 // SignalR + Redis backplane (so multi-instance deployments share hub state).
