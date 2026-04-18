@@ -1,0 +1,14 @@
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        var returnUrl = Uri.EscapeDataString(Navigation.ToBaseRelativePath(Navigation.Uri));
+        var loginUrl = string.IsNullOrEmpty(returnUrl)
+            ? "/account/login"
+            : $"/account/login?returnUrl=/{returnUrl}";
+
+        // Force full navigation (not client-side) so the SSR login page renders.
+        Navigation.NavigateTo(loginUrl, forceLoad: true);
+    }
+}
