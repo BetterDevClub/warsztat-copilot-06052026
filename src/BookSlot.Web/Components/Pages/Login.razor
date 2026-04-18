@@ -1,0 +1,43 @@
+@page "/account/login"
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>Sign in · BookSlot</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
+    <MudPaper Class="pa-6">
+        <MudText Typo="Typo.h5" GutterBottom="true">Sign in</MudText>
+
+        @if (HasError)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">
+                Invalid email or password.
+            </MudAlert>
+        }
+
+        <form method="post" action="/account/login">
+            @if (!string.IsNullOrEmpty(ReturnUrl))
+            {
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            }
+            <MudStack Spacing="3">
+                <MudTextField T="string" Label="Email" InputType="InputType.Email"
+                              name="email" Required="true" Variant="Variant.Outlined" />
+                <MudTextField T="string" Label="Password" InputType="InputType.Password"
+                              name="password" Required="true" Variant="Variant.Outlined" />
+                <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary" Variant="Variant.Filled">
+                    Sign in
+                </MudButton>
+            </MudStack>
+        </form>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public int? Error { get; set; }
+
+    private bool HasError => Error == 1;
+}

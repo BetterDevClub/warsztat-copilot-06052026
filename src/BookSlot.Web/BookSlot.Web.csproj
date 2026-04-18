@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
+    <PackageReference Include="MudBlazor" />
     <ProjectReference Include="..\BookSlot.Web.Client\BookSlot.Web.Client.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
   </ItemGroup>
