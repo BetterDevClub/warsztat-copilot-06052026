@@ -15,8 +15,10 @@ namespace BookSlot.Web;
 /// </summary>
 internal sealed class DevDataSeeder : IHostedService
 {
-    // Deterministic GUIDs so the seeder is truly idempotent across restarts.
-    private static readonly Guid DemoTenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    // Deterministic GUID derived from the slug — matches what TenantResolutionMiddleware
+    // computes via TenantIdFactory.FromSlug, so public /book/{slug} pages resolve to the same tenant.
+    private const string DemoTenantSlug = "demo-warsztat";
+    private static readonly Guid DemoTenantId = BookSlot.Features.Shared.Tenancy.TenantIdFactory.FromSlug(DemoTenantSlug);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<DevDataSeeder> _logger;
@@ -64,6 +66,7 @@ internal sealed class DevDataSeeder : IHostedService
         }
 
         db.Set<Tenant>().Add(tenantResult.Value);
+        db.TenantSettings.Add(BookSlot.Domain.Tenants.TenantSettings.CreateDefault(DemoTenantId));
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
         _logger.LogInformation("Seeded demo tenant 'demo-warsztat' (id: {Id}).", DemoTenantId);
     }

@@ -21,6 +21,8 @@ public static class GetTenantSettings
         string? ContactEmail,
         string? BrandingPrimaryColor,
         string? BrandingLogoUrl,
+        bool NoShowAutoMarkEnabled,
+        int NoShowGracePeriodMinutes,
         DateTimeOffset? UpdatedAt);
 
     /// <summary>Slice handler.</summary>
@@ -56,6 +58,8 @@ public static class GetTenantSettings
                 settings.ContactEmail,
                 settings.BrandingPrimaryColor,
                 settings.BrandingLogoUrl,
+                settings.NoShowAutoMarkEnabled,
+                settings.NoShowGracePeriodMinutes,
                 settings.UpdatedAt));
         }
     }

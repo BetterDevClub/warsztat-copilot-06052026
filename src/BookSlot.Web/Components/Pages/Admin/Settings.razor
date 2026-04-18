@@ -1,0 +1,169 @@
+@page "/admin/settings"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireOwner")]
+@rendermode InteractiveServer
+@using BookSlot.Features.Tenants.GetSettings
+@using BookSlot.Features.Tenants.UpdateSettings
+@using BookSlot.Features.Tenants.SetNoShowPolicy
+@inject GetTenantSettings.Handler GetHandler
+@inject UpdateTenantSettings.Handler UpdateHandler
+@inject SetNoShowPolicy.Handler NoShowHandler
+@inject ISnackbar Snackbar
+
+<PageTitle>Settings</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Tenant settings</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+else if (_form is not null)
+{
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">General</MudText>
+                <MudStack Spacing="3">
+                    <MudSelect T="string" Label="Time zone (IANA)" @bind-Value="_form.TimeZoneId" Required="true">
+                        @foreach (var tz in TimeZones)
+                        {
+                            <MudSelectItem Value="@tz">@tz</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudNumericField T="int" Label="Booking window (days)" @bind-Value="_form.BookingWindowDays" Min="1" Max="365" />
+                    <MudTextField T="string" Label="Contact email" @bind-Value="_form.ContactEmail" />
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Branding</MudText>
+                <MudStack Spacing="3">
+                    <MudTextField T="string" Label="Primary color (hex, e.g. #1976d2)" @bind-Value="_form.BrandingPrimaryColor" />
+                    <MudTextField T="string" Label="Logo URL" @bind-Value="_form.BrandingLogoUrl" />
+                    @if (!string.IsNullOrWhiteSpace(_form.BrandingLogoUrl))
+                    {
+                        <MudImage Src="@_form.BrandingLogoUrl" Alt="Logo preview" Style="max-height:80px;max-width:200px;" Elevation="0" />
+                    }
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12">
+            <MudStack Row="true">
+                <MudSpacer />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveGeneralAsync">Save general &amp; branding</MudButton>
+            </MudStack>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">No-show policy</MudText>
+                <MudStack Spacing="3">
+                    <MudSwitch T="bool" Color="Color.Primary" @bind-Value="_form.NoShowAutoMarkEnabled" Label="Auto-mark missed bookings as no-show" />
+                    <MudNumericField T="int" Label="Grace period (minutes)" @bind-Value="_form.NoShowGracePeriodMinutes" Min="0" Max="240" Disabled="!_form.NoShowAutoMarkEnabled" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_saving" OnClick="SaveNoShowAsync">Save policy</MudButton>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private static readonly string[] TimeZones =
+    {
+        "UTC", "Europe/Warsaw", "Europe/London", "Europe/Berlin", "Europe/Paris", "Europe/Madrid",
+        "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+        "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"
+    };
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private FormModel? _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync().ConfigureAwait(false);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        var result = await GetHandler.HandleAsync(CancellationToken.None).ConfigureAwait(false);
+        if (result.IsFailure)
+        {
+            _error = result.Error?.Message ?? "Failed to load settings.";
+        }
+        else
+        {
+            var s = result.Value;
+            _form = new FormModel
+            {
+                TimeZoneId = s.TimeZoneId,
+                BookingWindowDays = s.BookingWindowDays,
+                ContactEmail = s.ContactEmail,
+                BrandingPrimaryColor = s.BrandingPrimaryColor,
+                BrandingLogoUrl = s.BrandingLogoUrl,
+                NoShowAutoMarkEnabled = s.NoShowAutoMarkEnabled,
+                NoShowGracePeriodMinutes = s.NoShowGracePeriodMinutes,
+            };
+        }
+        _loading = false;
+    }
+
+    private async Task SaveGeneralAsync()
+    {
+        if (_form is null) return;
+        _saving = true;
+        var cmd = new UpdateTenantSettings.Command(
+            _form.TimeZoneId,
+            _form.BookingWindowDays,
+            string.IsNullOrWhiteSpace(_form.ContactEmail) ? null : _form.ContactEmail,
+            string.IsNullOrWhiteSpace(_form.BrandingPrimaryColor) ? null : _form.BrandingPrimaryColor,
+            string.IsNullOrWhiteSpace(_form.BrandingLogoUrl) ? null : _form.BrandingLogoUrl);
+        var res = await UpdateHandler.HandleAsync(cmd, CancellationToken.None).ConfigureAwait(false);
+        _saving = false;
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Settings saved", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Save failed", Severity.Error);
+        }
+    }
+
+    private async Task SaveNoShowAsync()
+    {
+        if (_form is null) return;
+        _saving = true;
+        var res = await NoShowHandler.HandleAsync(
+            new SetNoShowPolicy.Command(_form.NoShowAutoMarkEnabled, _form.NoShowGracePeriodMinutes),
+            CancellationToken.None).ConfigureAwait(false);
+        _saving = false;
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("No-show policy saved", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Save failed", Severity.Error);
+        }
+    }
+
+    private sealed class FormModel
+    {
+        public string TimeZoneId { get; set; } = "UTC";
+        public int BookingWindowDays { get; set; } = 30;
+        public string? ContactEmail { get; set; }
+        public string? BrandingPrimaryColor { get; set; }
+        public string? BrandingLogoUrl { get; set; }
+        public bool NoShowAutoMarkEnabled { get; set; }
+        public int NoShowGracePeriodMinutes { get; set; } = 15;
+    }
+}

@@ -1,0 +1,411 @@
+@page "/book/{TenantSlug}"
+@layout BookSlot.Web.Components.Layout.PublicLayout
+@rendermode InteractiveServer
+@implements IDisposable
+@using System.Globalization
+@using System.Text.RegularExpressions
+@using BookSlot.Features.Availability.GetSlots
+@using BookSlot.Features.Bookings.Create
+@using BookSlot.Features.Public.GetTenantBranding
+@using BookSlot.Features.Public.ListServiceTypes
+@using BookSlot.Features.Public.ListStaffForService
+@using BookSlot.Features.Reservations.Create
+@using BookSlot.Features.Shared.Tenancy
+@inject CurrentTenantAccessor TenantAccessor
+@inject GetPublicTenantBranding.Handler BrandingHandler
+@inject ListPublicServiceTypes.Handler ServicesHandler
+@inject ListPublicStaffForService.Handler StaffHandler
+@inject GetSlots.Handler SlotsHandler
+@inject CreateReservation.Handler ReservationHandler
+@inject CreateBooking.Handler BookingHandler
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_branding?.DisplayName ?? "Book an appointment")</PageTitle>
+
+@if (_invalidSlug)
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="mt-12">
+        <MudAlert Severity="Severity.Error">Tenant not found or inactive.</MudAlert>
+    </MudContainer>
+}
+else if (_branding is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <div style="@HeaderStyle">
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                @if (!string.IsNullOrWhiteSpace(_branding.BrandingLogoUrl))
+                {
+                    <MudImage Src="@_branding.BrandingLogoUrl" Alt="Logo" Style="max-height:48px;" />
+                }
+                <MudText Typo="Typo.h4" Style="color:white;">@_branding.DisplayName</MudText>
+            </MudStack>
+        </MudContainer>
+    </div>
+
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="my-6">
+        <MudPaper Class="pa-5" Elevation="2">
+            <MudStepper @bind-ActiveIndex="_step" NonLinear="false" ShowResetButton="false">
+                <MudStep Title="Service">
+                    @if (_services.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info">No services available.</MudAlert>
+                    }
+                    else
+                    {
+                        <MudList T="ListPublicServiceTypes.Item" SelectedValue="_service" SelectedValueChanged="OnServiceSelected">
+                            @foreach (var s in _services)
+                            {
+                                <MudListItem T="ListPublicServiceTypes.Item" Value="@s">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                                        <MudIcon Icon="@Icons.Material.Filled.DesignServices" />
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.subtitle1">@s.Name</MudText>
+                                            <MudText Typo="Typo.caption">@s.DurationMinutes min · @s.Price.ToString("0.00", CultureInfo.InvariantCulture) @s.Currency</MudText>
+                                        </MudStack>
+                                    </MudStack>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+                </MudStep>
+                <MudStep Title="Staff">
+                    @if (_staffLoading)
+                    {
+                        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                    }
+                    else if (_staff.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Warning">No staff available for this service.</MudAlert>
+                    }
+                    else
+                    {
+                        <MudList T="ListPublicStaffForService.Item" SelectedValue="_selectedStaff" SelectedValueChanged="OnStaffSelected">
+                            @foreach (var st in _staff)
+                            {
+                                <MudListItem T="ListPublicStaffForService.Item" Value="@st">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                                        <MudAvatar Size="Size.Small">@Initials(st.DisplayName)</MudAvatar>
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.subtitle1">@st.DisplayName</MudText>
+                                            @if (!string.IsNullOrWhiteSpace(st.Title))
+                                            {
+                                                <MudText Typo="Typo.caption">@st.Title</MudText>
+                                            }
+                                        </MudStack>
+                                    </MudStack>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+                </MudStep>
+                <MudStep Title="Date">
+                    <MudDatePicker Label="Pick a date" @bind-Date="_date" MinDate="DateTime.Today" MaxDate="DateTime.Today.AddDays(_branding.BookingWindowDays)" />
+                </MudStep>
+                <MudStep Title="Time">
+                    @if (_slotsLoading)
+                    {
+                        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                    }
+                    else if (_slots.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info">No free slots on the selected day. Try another date.</MudAlert>
+                    }
+                    else
+                    {
+                        <MudGrid Spacing="2">
+                            @foreach (var slot in _slots)
+                            {
+                                var localStart = TimeZoneInfo.ConvertTime(slot.StartUtc, _tz);
+                                var isSel = _selectedSlot is not null && _selectedSlot.StartUtc == slot.StartUtc;
+                                <MudItem xs="4" sm="3" md="2">
+                                    <MudButton FullWidth="true"
+                                               Variant="@(isSel ? Variant.Filled : Variant.Outlined)"
+                                               Color="Color.Primary"
+                                               OnClick="@(() => OnSlotSelected(slot))">
+                                        @localStart.ToString("HH:mm", CultureInfo.InvariantCulture)
+                                    </MudButton>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    }
+                </MudStep>
+                <MudStep Title="Your details">
+                    <MudStack Spacing="3">
+                        <MudTextField T="string" Label="Full name *" @bind-Value="_guestName" Required="true" />
+                        <MudTextField T="string" Label="Email *" @bind-Value="_guestEmail" Required="true" InputType="InputType.Email" />
+                        <MudTextField T="string" Label="Phone" @bind-Value="_guestPhone" />
+                        <MudTextField T="string" Label="Notes" @bind-Value="_guestNotes" Lines="3" />
+                    </MudStack>
+                </MudStep>
+                <MudStep Title="Confirm">
+                    @if (_confirmation is not null)
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mb-3">
+                            <MudText Typo="Typo.h6">Booking confirmed!</MudText>
+                            <MudText>Reference: <code>@_confirmation.BookingId</code></MudText>
+                            <MudText>We've reserved <b>@_service?.Name</b> with <b>@_selectedStaff?.DisplayName</b> on
+                                <b>@TimeZoneInfo.ConvertTime(_confirmation.StartUtc, _tz).ToString("dddd, d MMM yyyy 'at' HH:mm", CultureInfo.InvariantCulture)</b> (@_branding.TimeZoneId).</MudText>
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudStack Spacing="2">
+                            <MudPaper Class="pa-3" Outlined="true">
+                                <MudText><b>Service:</b> @_service?.Name (@_service?.DurationMinutes min)</MudText>
+                                <MudText><b>Staff:</b> @_selectedStaff?.DisplayName</MudText>
+                                <MudText><b>When:</b> @(_selectedSlot is null ? "—" : TimeZoneInfo.ConvertTime(_selectedSlot.StartUtc, _tz).ToString("dddd, d MMM yyyy 'at' HH:mm", CultureInfo.InvariantCulture)) (@_branding.TimeZoneId)</MudText>
+                                <MudText><b>Guest:</b> @_guestName &lt;@_guestEmail&gt;</MudText>
+                            </MudPaper>
+                            @if (_reservation is not null)
+                            {
+                                <MudAlert Severity="Severity.Info">
+                                    Slot held for you. Time left: <b>@FormatRemaining()</b>
+                                </MudAlert>
+                            }
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitting || _reservation is null" OnClick="ConfirmAsync">Confirm booking</MudButton>
+                        </MudStack>
+                    }
+                </MudStep>
+            </MudStepper>
+
+            <MudStack Row="true" Class="mt-4">
+                <MudButton OnClick="Back" Disabled="_step == 0 || _confirmation is not null">Back</MudButton>
+                <MudSpacer />
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Next" Disabled="!CanGoNext()">Next</MudButton>
+            </MudStack>
+        </MudPaper>
+    </MudContainer>
+}
+
+@code {
+    [Parameter] public string TenantSlug { get; set; } = string.Empty;
+
+    private static readonly Regex SlugRegex = new("^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$", RegexOptions.Compiled);
+
+    private bool _invalidSlug;
+    private GetPublicTenantBranding.Response? _branding;
+    private TimeZoneInfo _tz = TimeZoneInfo.Utc;
+
+    private int _step;
+    private List<ListPublicServiceTypes.Item> _services = new();
+    private List<ListPublicStaffForService.Item> _staff = new();
+    private List<GetSlots.SlotDto> _slots = new();
+
+    private ListPublicServiceTypes.Item? _service;
+    private ListPublicStaffForService.Item? _selectedStaff;
+    private DateTime? _date = DateTime.Today;
+    private GetSlots.SlotDto? _selectedSlot;
+
+    private string _guestName = string.Empty;
+    private string _guestEmail = string.Empty;
+    private string? _guestPhone;
+    private string? _guestNotes;
+
+    private bool _staffLoading;
+    private bool _slotsLoading;
+    private bool _submitting;
+
+    private CreateReservation.Response? _reservation;
+    private CreateBooking.Response? _confirmation;
+    private System.Threading.Timer? _ticker;
+
+    private string HeaderStyle => $"background:{(_branding?.BrandingPrimaryColor ?? "#1976d2")};";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SlugRegex.IsMatch(TenantSlug ?? string.Empty))
+        {
+            _invalidSlug = true;
+            return;
+        }
+
+        TenantAccessor.Set(TenantIdFactory.FromSlug(TenantSlug!), TenantSlug!);
+
+        _branding = await BrandingHandler.HandleAsync(CancellationToken.None).ConfigureAwait(false);
+        if (_branding is null)
+        {
+            _invalidSlug = true;
+            return;
+        }
+        try { _tz = TimeZoneInfo.FindSystemTimeZoneById(_branding.TimeZoneId); }
+        catch (TimeZoneNotFoundException) { _tz = TimeZoneInfo.Utc; }
+
+        var svc = await ServicesHandler.HandleAsync(CancellationToken.None).ConfigureAwait(false);
+        _services = svc.Items.ToList();
+    }
+
+    private async Task OnServiceSelected(ListPublicServiceTypes.Item? item)
+    {
+        _service = item;
+        _selectedStaff = null;
+        _selectedSlot = null;
+        _staff = new();
+        if (item is null) return;
+        _staffLoading = true;
+        var res = await StaffHandler.HandleAsync(item.Id, CancellationToken.None).ConfigureAwait(false);
+        _staff = res.Items.ToList();
+        _staffLoading = false;
+    }
+
+    private void OnStaffSelected(ListPublicStaffForService.Item? item)
+    {
+        _selectedStaff = item;
+        _selectedSlot = null;
+    }
+
+    private async Task LoadSlotsAsync()
+    {
+        _slots = new();
+        _selectedSlot = null;
+        if (_service is null || _selectedStaff is null || _date is null) return;
+
+        _slotsLoading = true;
+        var dayLocal = DateTime.SpecifyKind(_date.Value.Date, DateTimeKind.Unspecified);
+        var fromUtc = TimeZoneInfo.ConvertTimeToUtc(dayLocal, _tz);
+        var toUtc = TimeZoneInfo.ConvertTimeToUtc(dayLocal.AddDays(1), _tz);
+
+        var query = new GetSlots.Query(_selectedStaff.Id, _service.Id, fromUtc, toUtc);
+        var res = await SlotsHandler.HandleAsync(query, CancellationToken.None).ConfigureAwait(false);
+        if (res.IsSuccess)
+        {
+            _slots = res.Value.Slots.ToList();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Failed to load slots", Severity.Error);
+        }
+        _slotsLoading = false;
+    }
+
+    private void OnSlotSelected(GetSlots.SlotDto slot)
+    {
+        _selectedSlot = slot;
+    }
+
+    private bool CanGoNext()
+    {
+        if (_confirmation is not null) return false;
+        return _step switch
+        {
+            0 => _service is not null,
+            1 => _selectedStaff is not null,
+            2 => _date is not null,
+            3 => _selectedSlot is not null,
+            4 => !string.IsNullOrWhiteSpace(_guestName) && !string.IsNullOrWhiteSpace(_guestEmail),
+            5 => false,
+            _ => false,
+        };
+    }
+
+    private async Task Next()
+    {
+        if (_step == 2)
+        {
+            await LoadSlotsAsync().ConfigureAwait(false);
+        }
+        if (_step == 4)
+        {
+            await CreateHoldAsync().ConfigureAwait(false);
+            if (_reservation is null) return;
+        }
+        _step++;
+    }
+
+    private void Back()
+    {
+        if (_step == 5 && _reservation is not null)
+        {
+            // releasing held slot is best-effort; let it expire
+            _reservation = null;
+            StopTicker();
+        }
+        _step = Math.Max(0, _step - 1);
+    }
+
+    private async Task CreateHoldAsync()
+    {
+        if (_service is null || _selectedStaff is null || _selectedSlot is null) return;
+        _submitting = true;
+        var cmd = new CreateReservation.Command(_selectedStaff.Id, _service.Id, _selectedSlot.StartUtc, _selectedSlot.EndUtc);
+        var res = await ReservationHandler.HandleAsync(cmd, CancellationToken.None).ConfigureAwait(false);
+        _submitting = false;
+        if (res.IsFailure)
+        {
+            Snackbar.Add(res.Error?.Message ?? "Could not hold the slot", Severity.Error);
+            return;
+        }
+        _reservation = res.Value;
+        StartTicker();
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_reservation is null) return;
+        _submitting = true;
+        var cmd = new CreateBooking.Command(
+            _reservation.ReservationId,
+            _guestName.Trim(),
+            _guestEmail.Trim(),
+            string.IsNullOrWhiteSpace(_guestPhone) ? null : _guestPhone.Trim(),
+            string.IsNullOrWhiteSpace(_guestNotes) ? null : _guestNotes,
+            null);
+        var res = await BookingHandler.HandleAsync(cmd, CancellationToken.None).ConfigureAwait(false);
+        _submitting = false;
+        if (res.IsFailure)
+        {
+            Snackbar.Add(res.Error?.Message ?? "Booking failed", Severity.Error);
+            return;
+        }
+        _confirmation = res.Value;
+        StopTicker();
+    }
+
+    private void StartTicker()
+    {
+        StopTicker();
+        _ticker = new System.Threading.Timer(_ =>
+        {
+            if (_reservation is null) return;
+            if (DateTimeOffset.UtcNow >= _reservation.ExpiresAtUtc)
+            {
+                _reservation = null;
+                StopTicker();
+                InvokeAsync(() =>
+                {
+                    Snackbar.Add("Hold expired — please pick a new slot.", Severity.Warning);
+                    _step = 3;
+                    StateHasChanged();
+                });
+                return;
+            }
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+    private void StopTicker()
+    {
+        _ticker?.Dispose();
+        _ticker = null;
+    }
+
+    private string FormatRemaining()
+    {
+        if (_reservation is null) return "0:00";
+        var left = _reservation.ExpiresAtUtc - DateTimeOffset.UtcNow;
+        if (left <= TimeSpan.Zero) return "0:00";
+        return $"{(int)left.TotalMinutes}:{left.Seconds:D2}";
+    }
+
+    private static string Initials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 1 ? parts[0][..1].ToUpperInvariant() : (parts[0][..1] + parts[^1][..1]).ToUpperInvariant();
+    }
+
+    public void Dispose() => StopTicker();
+}

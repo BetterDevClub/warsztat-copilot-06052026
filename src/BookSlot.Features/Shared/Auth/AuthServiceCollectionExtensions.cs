@@ -128,6 +128,10 @@ public static class AuthServiceCollectionExtensions
         services.AddScoped<Features.Integrations.Google.HandleCallback.HandleGoogleOAuthCallback.Handler>();
         services.AddScoped<Features.ServiceTypes.SetFormSchema.SetServiceTypeFormSchema.Handler>();
         services.AddScoped<Features.ServiceTypes.GetFormSchema.GetServiceTypeFormSchema.Handler>();
+        services.AddScoped<Features.Tenants.SetNoShowPolicy.SetNoShowPolicy.Handler>();
+        services.AddScoped<Features.Public.ListServiceTypes.ListPublicServiceTypes.Handler>();
+        services.AddScoped<Features.Public.ListStaffForService.ListPublicStaffForService.Handler>();
+        services.AddScoped<Features.Public.GetTenantBranding.GetPublicTenantBranding.Handler>();
 
         return services;
     }
