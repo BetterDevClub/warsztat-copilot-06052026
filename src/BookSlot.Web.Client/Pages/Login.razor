@@ -1,6 +1,6 @@
 @page "/account/login"
-@using Microsoft.AspNetCore.Components.Web
-@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
 
 <PageTitle>Sign in · BookSlot</PageTitle>
 
