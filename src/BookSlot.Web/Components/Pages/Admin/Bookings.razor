@@ -1,0 +1,252 @@
+@page "/admin/bookings"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequireStaff")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using System.Web
+@using BookSlot.Domain.Bookings
+@using BookSlot.Domain.Abstractions
+@using BookSlot.Features.Bookings.AdminCancel
+@using BookSlot.Features.Bookings.AdminList
+@using BookSlot.Features.Bookings.MarkNoShow
+@using BookSlot.Features.ServiceTypes.List
+@using BookSlot.Features.Staff.List
+@using BookSlot.Web.Notifications
+@inject AdminListBookings.Handler ListBookings
+@inject AdminCancelBooking.Handler CancelHandler
+@inject MarkBookingNoShow.Handler NoShowHandler
+@inject ListStaff.Handler ListStaff
+@inject ListServiceTypes.Handler ListServiceTypes
+@inject ICurrentTenant CurrentTenant
+@inject IBookingEventBus EventBus
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@implements IDisposable
+
+<PageTitle>Bookings</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Bookings</MudText>
+
+<MudPaper Class="pa-4 mb-3" Elevation="1">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="BookingStatus?" Value="_status" ValueChanged="OnStatusChanged" Label="Status" Clearable="true" Dense="true">
+                <MudSelectItem T="BookingStatus?" Value="@((BookingStatus?)null)">All</MudSelectItem>
+                @foreach (var s in Enum.GetValues<BookingStatus>())
+                {
+                    <MudSelectItem T="BookingStatus?" Value="@((BookingStatus?)s)">@s</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="Guid?" Value="_staffId" ValueChanged="OnStaffChanged" Label="Staff" Clearable="true" Dense="true">
+                <MudSelectItem T="Guid?" Value="@((Guid?)null)">All</MudSelectItem>
+                @foreach (var s in _staff)
+                {
+                    <MudSelectItem T="Guid?" Value="@((Guid?)s.Id)">@s.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="Guid?" Value="_serviceTypeId" ValueChanged="OnServiceChanged" Label="Service" Clearable="true" Dense="true">
+                <MudSelectItem T="Guid?" Value="@((Guid?)null)">All</MudSelectItem>
+                @foreach (var s in _serviceTypes)
+                {
+                    <MudSelectItem T="Guid?" Value="@((Guid?)s.Id)">@s.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDateRangePicker Label="Date range" DateRange="_range" DateRangeChanged="OnRangeChanged" Clearable="true" />
+        </MudItem>
+    </MudGrid>
+    <MudStack Row="true" Class="mt-3" AlignItems="AlignItems.Center">
+        <MudButton OnClick="ResetFilters" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Clear">Reset</MudButton>
+        <MudSpacer />
+        <MudText Typo="Typo.caption" Color="Color.Secondary">@_total bookings</MudText>
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportCsv">CSV</MudButton>
+    </MudStack>
+</MudPaper>
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3">@_loadError</MudAlert>
+}
+
+<MudTable @ref="_table" ServerData="LoadServerData" Dense="true" Hover="true" Striped="true" Bordered="false"
+          RowsPerPage="25" Loading="_loading" LoadingProgressColor="Color.Primary">
+    <HeaderContent>
+        <MudTh>When</MudTh>
+        <MudTh>Guest</MudTh>
+        <MudTh>Service</MudTh>
+        <MudTh>Staff</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh Style="text-align:right">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="When">@context.StartUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)</MudTd>
+        <MudTd DataLabel="Guest">
+            <div>@context.GuestName</div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.GuestEmail</MudText>
+        </MudTd>
+        <MudTd DataLabel="Service">@context.ServiceTypeName</MudTd>
+        <MudTd DataLabel="Staff">@context.StaffName</MudTd>
+        <MudTd DataLabel="Status"><MudChip T="string" Color="@StatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip></MudTd>
+        <MudTd Style="text-align:right">
+            <MudTooltip Text="Mark as no-show">
+                <MudIconButton Icon="@Icons.Material.Filled.PersonOff" Size="Size.Small" Color="Color.Warning"
+                               Disabled="@(context.Status != "Confirmed")"
+                               OnClick="@(() => MarkNoShowAsync(context))" />
+            </MudTooltip>
+            <MudTooltip Text="Cancel booking">
+                <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Error"
+                               Disabled="@(context.Status is "Cancelled" or "NoShow")"
+                               OnClick="@(() => CancelAsync(context))" />
+            </MudTooltip>
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText Typo="Typo.body2" Class="pa-4">No bookings match the current filters.</MudText>
+    </NoRecordsContent>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new[] { 10, 25, 50, 100 }" />
+    </PagerContent>
+</MudTable>
+
+@code {
+    private MudTable<AdminListBookings.Item> _table = null!;
+    private BookingStatus? _status;
+    private Guid? _staffId;
+    private Guid? _serviceTypeId;
+    private DateRange _range = new();
+    private int _total;
+    private bool _loading;
+    private string? _loadError;
+    private IReadOnlyList<ListStaff.Item> _staff = Array.Empty<ListStaff.Item>();
+    private IReadOnlyList<ListServiceTypes.Item> _serviceTypes = Array.Empty<ListServiceTypes.Item>();
+    private IDisposable? _subscription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var staff = await ListStaff.HandleAsync(true, CancellationToken.None);
+        _staff = staff.Value?.Items ?? Array.Empty<ListStaff.Item>();
+        var services = await ListServiceTypes.HandleAsync(true, CancellationToken.None);
+        _serviceTypes = services.Value?.Items ?? Array.Empty<ListServiceTypes.Item>();
+
+        var tenantId = CurrentTenant.TenantId?.ToString();
+        if (!string.IsNullOrEmpty(tenantId))
+        {
+            _subscription = EventBus.Subscribe(tenantId, async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (_table is not null) await _table.ReloadServerData();
+                });
+            });
+        }
+    }
+
+    public void Dispose() => _subscription?.Dispose();
+
+    private async Task<TableData<AdminListBookings.Item>> LoadServerData(TableState state, CancellationToken ct)
+    {
+        _loading = true;
+        try
+        {
+            DateTimeOffset? from = _range.Start.HasValue
+                ? new DateTimeOffset(_range.Start.Value, TimeZoneInfo.Local.GetUtcOffset(_range.Start.Value)).ToUniversalTime()
+                : null;
+            DateTimeOffset? to = _range.End.HasValue
+                ? new DateTimeOffset(_range.End.Value.AddDays(1), TimeZoneInfo.Local.GetUtcOffset(_range.End.Value)).ToUniversalTime()
+                : null;
+
+            var page = state.Page + 1;
+            var result = await ListBookings.HandleAsync(_status, _staffId, _serviceTypeId, from, to, page, state.PageSize, ct);
+            if (result.IsFailure)
+            {
+                _loadError = result.Error.Message;
+                return new TableData<AdminListBookings.Item> { TotalItems = 0, Items = Array.Empty<AdminListBookings.Item>() };
+            }
+            _loadError = null;
+            _total = result.Value!.TotalCount;
+            return new TableData<AdminListBookings.Item> { TotalItems = _total, Items = result.Value.Items };
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+            return new TableData<AdminListBookings.Item> { TotalItems = 0, Items = Array.Empty<AdminListBookings.Item>() };
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnStatusChanged(BookingStatus? v) { _status = v; await _table.ReloadServerData(); }
+    private async Task OnStaffChanged(Guid? v) { _staffId = v; await _table.ReloadServerData(); }
+    private async Task OnServiceChanged(Guid? v) { _serviceTypeId = v; await _table.ReloadServerData(); }
+    private async Task OnRangeChanged(DateRange r) { _range = r ?? new DateRange(); await _table.ReloadServerData(); }
+
+    private async Task ResetFilters()
+    {
+        _status = null; _staffId = null; _serviceTypeId = null; _range = new DateRange();
+        await _table.ReloadServerData();
+    }
+
+    private async Task MarkNoShowAsync(AdminListBookings.Item item)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Mark no-show?" },
+            { x => x.Message, $"Mark booking for {item.GuestName} as no-show?" },
+            { x => x.ConfirmText, "Yes" },
+            { x => x.ConfirmColor, Color.Warning },
+        };
+        var dlg = await Dialog.ShowAsync<ConfirmDialog>("Mark no-show?", parameters);
+        var res = await dlg.Result;
+        if (res is null || res.Canceled) return;
+        var result = await NoShowHandler.HandleAsync(item.Id, CancellationToken.None);
+        if (result.IsSuccess) { Snackbar.Add("Marked as no-show.", Severity.Success); await _table.ReloadServerData(); }
+        else Snackbar.Add(result.Error.Message, Severity.Error);
+    }
+
+    private async Task CancelAsync(AdminListBookings.Item item)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Cancel booking?" },
+            { x => x.Message, $"Cancel booking for {item.GuestName}? This cannot be undone." },
+            { x => x.ConfirmText, "Cancel booking" },
+            { x => x.ConfirmColor, Color.Error },
+        };
+        var dlg = await Dialog.ShowAsync<ConfirmDialog>("Cancel booking?", parameters);
+        var res = await dlg.Result;
+        if (res is null || res.Canceled) return;
+        var result = await CancelHandler.HandleAsync(item.Id, CancellationToken.None);
+        if (result.IsSuccess) { Snackbar.Add("Booking cancelled.", Severity.Success); await _table.ReloadServerData(); }
+        else Snackbar.Add(result.Error.Message, Severity.Error);
+    }
+
+    private void ExportCsv()
+    {
+        var qs = new List<string>();
+        if (_status.HasValue) qs.Add($"status={_status}");
+        if (_staffId.HasValue) qs.Add($"staffId={_staffId}");
+        if (_serviceTypeId.HasValue) qs.Add($"serviceTypeId={_serviceTypeId}");
+        if (_range.Start.HasValue)
+            qs.Add("from=" + HttpUtility.UrlEncode(new DateTimeOffset(_range.Start.Value, TimeZoneInfo.Local.GetUtcOffset(_range.Start.Value)).ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)));
+        if (_range.End.HasValue)
+            qs.Add("to=" + HttpUtility.UrlEncode(new DateTimeOffset(_range.End.Value.AddDays(1), TimeZoneInfo.Local.GetUtcOffset(_range.End.Value)).ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)));
+        var url = "/admin/bookings/export.csv" + (qs.Count > 0 ? "?" + string.Join('&', qs) : "");
+        Nav.NavigateTo(url, forceLoad: true);
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Confirmed" => Color.Success,
+        "Pending" => Color.Warning,
+        "Cancelled" => Color.Error,
+        "NoShow" => Color.Dark,
+        _ => Color.Default,
+    };
+}
