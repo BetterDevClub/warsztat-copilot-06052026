@@ -5,6 +5,7 @@ using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Tenancy;
 using BookSlot.Web;
 using BookSlot.Infrastructure;
+using BookSlot.Infrastructure.Observability;
 using BookSlot.Web.Account;
 using BookSlot.Web.Auth;
 using BookSlot.Web.Components;
@@ -15,9 +16,14 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MudBlazor.Services;
+using Serilog;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog + OpenTelemetry shared with Api/Worker; service name distinguishes the host.
+builder.Host.UseBookSlotSerilog("BookSlot.Web");
+builder.Services.AddBookSlotOpenTelemetry(builder.Configuration, "BookSlot.Web");
 
 // Razor Components with both interactive render modes (Server + WASM).
 builder.Services.AddRazorComponents()
@@ -93,7 +99,13 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddHostedService<DevDataSeeder>();
 }
 
+// Probe surface — same set as the API host.
+builder.Services.AddBookSlotHealthChecks(builder.Configuration);
+
 var app = builder.Build();
+
+app.UseCorrelationId();
+app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {
@@ -121,5 +133,6 @@ app.MapRazorComponents<App>()
 // SSR account endpoints (login/logout) and the notifications hub.
 app.MapAccountEndpoints();
 app.MapHub<NotificationsHub>("/hubs/notifications");
+app.MapBookSlotHealthChecks();
 
 app.Run();

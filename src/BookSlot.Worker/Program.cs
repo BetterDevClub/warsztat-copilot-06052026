@@ -1,8 +1,13 @@
 using BookSlot.Infrastructure;
+using BookSlot.Infrastructure.Observability;
 using BookSlot.Worker;
 using BookSlot.Worker.Leadership;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog + OpenTelemetry — same plumbing as Api/Web for unified dev dashboards.
+builder.Host.UseBookSlotSerilog("BookSlot.Worker");
+builder.Services.AddBookSlotOpenTelemetry(builder.Configuration, "BookSlot.Worker");
 
 // Share the same infrastructure registrations as the API (DbContext, Redis,
 // notifications, integrations) so worker jobs can use the full feature stack.
@@ -14,15 +19,15 @@ builder.Services.AddAuthentication();
 builder.Services.AddDataProtection();
 builder.Services.AddWorkerHost();
 
-// Health checks — /health returns 200 when Postgres + leader election are reachable.
+// Health checks: shared (Postgres/Redis/Outbox) + worker-specific leader probe.
 builder.Services
-    .AddHealthChecks()
-    .AddCheck<LeaderElectionHealthCheck>("leader-election");
+    .AddBookSlotHealthChecks(builder.Configuration)
+    .AddCheck<LeaderElectionHealthCheck>("leader-election", tags: new[] { "ready", "leader" });
 
 var app = builder.Build();
 
 app.MapGet("/", () => Results.Ok(new { service = "BookSlot.Worker", status = "running" }));
-app.MapHealthChecks("/health");
+app.MapBookSlotHealthChecks();
 
 app.Run();
 

@@ -4,9 +4,16 @@ using BookSlot.Features.Shared.Auth;
 using BookSlot.Features.Shared.Endpoints;
 using BookSlot.Features.Shared.Tenancy;
 using BookSlot.Infrastructure;
+using BookSlot.Infrastructure.Observability;
 using FluentValidation;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog (console + Seq) replaces the default ILogger pipeline; OpenTelemetry feeds
+// traces + metrics over OTLP so dev runs surface end-to-end timings.
+builder.Host.UseBookSlotSerilog("BookSlot.Api");
+builder.Services.AddBookSlotOpenTelemetry(builder.Configuration, "BookSlot.Api");
 
 // OpenAPI / Swagger surface.
 builder.Services.AddOpenApi();
@@ -38,7 +45,13 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddTenancy(builder.Configuration);
 builder.Services.AddAuth(builder.Configuration);
 
+// Probe surface: /health (full report), /health/ready (deps), /health/live (process up).
+builder.Services.AddBookSlotHealthChecks(builder.Configuration);
+
 var app = builder.Build();
+
+app.UseCorrelationId();
+app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {
@@ -60,6 +73,7 @@ var tenantGroup = app.MapGroup("/api/v1")
     .WithTags("v1");
 
 app.MapEndpoints(tenantGroup: tenantGroup);
+app.MapBookSlotHealthChecks();
 
 app.Run();
 
