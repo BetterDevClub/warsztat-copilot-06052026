@@ -1,0 +1,25 @@
+**/bin
+**/obj
+**/.vs
+**/.vscode
+**/.idea
+**/TestResults
+**/coverage
+**/*.user
+**/*.suo
+**/.DS_Store
+**/.git
+**/.github
+**/node_modules
+
+# Tests are built and run separately
+tests/
+
+# Don't bake dev secrets into images
+**/appsettings.Development.json
+**/secrets.json
+**/.env*
+
+# Big folders that aren't needed in the image
+docs/
+*.md

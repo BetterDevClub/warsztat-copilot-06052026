@@ -1,50 +1,55 @@
 # BookSlot
 
-Multi-tenant appointment booking platform (.NET 10, PostgreSQL, Blazor Web App).
+Multi-tenant SaaS appointment booking platform built on **.NET 10**, **PostgreSQL**, **Redis** and **Blazor Web App**, organized as **Vertical Slice Architecture (VSA)**.
 
-> Built iteratively across 35 phases — see `projekt-startowy.md` and the session plan for details.
+> Built iteratively across 35 phases. The full plan lives in `projekt-startowy.md` and the phase-by-phase progress in the session checkpoint folder.
+
+---
 
 ## Stack
 
-| Layer | Tech |
-| --- | --- |
-| Domain / Application | .NET 10, MediatR, FluentValidation, Result<T> |
-| Infrastructure | EF Core 10, PostgreSQL, Redis |
-| API | ASP.NET Core 10 Web API |
-| Web | Blazor Web App (.NET 10) — Server + WASM interactive modes |
-| Worker | .NET Worker Service (custom `BackgroundService`s + DB outbox) |
-| Auth | ASP.NET Core Identity + JWT (access + refresh) |
-| Observability | Serilog + OpenTelemetry (OTLP) + HealthChecks |
-| Testing | xUnit, FluentAssertions, NSubstitute, Testcontainers, NetArchTest |
+| Layer            | Tech                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| Domain           | .NET 10, Result/Error primitives, value objects, domain events                           |
+| Features (VSA)   | One folder per use-case (`*Endpoint`, `*Handler`, `*Validator`, `*Command`/`*Query`)     |
+| Infrastructure   | EF Core 10 (Npgsql + naming conventions), Identity, Redis, outbox, security, observability |
+| API              | ASP.NET Core 10 Minimal APIs + JWT bearer, rate limiting, OpenAPI                        |
+| Web              | Blazor Web App (Server + WASM auto), MudBlazor + blazor-bootstrap, cookie auth, antiforgery |
+| Worker           | .NET Worker Service — outbox dispatcher, reminders, webhook delivery, leader election     |
+| Auth             | ASP.NET Core Identity + JWT (access + refresh) + roles (`Owner`, `Staff`, `Admin`)        |
+| Observability    | Serilog → Seq, OpenTelemetry (OTLP), HealthChecks (`/health/live`, `/ready`)              |
+| Testing          | xUnit, FluentAssertions, NSubstitute, Testcontainers (Postgres), NetArchTest              |
 
 ## Solution layout
 
 ```
 BookSlot.slnx
 src/
-├── BookSlot.Domain/          entities, value objects, domain events
-├── BookSlot.Application/     CQRS (MediatR), DTOs, interfaces, pipeline behaviors
-├── BookSlot.Infrastructure/  EF Core, email, external APIs
-├── BookSlot.Api/             ASP.NET Core Web API
-├── BookSlot.Web/             Blazor Web App — server host
-├── BookSlot.Web.Client/      Blazor Web App — WASM client
-└── BookSlot.Worker/          Background jobs (outbox polling, reminders, webhooks…)
+├── BookSlot.Domain/            entities, value objects, domain events, Result<T>
+├── BookSlot.Infrastructure/    EF Core, Identity, Redis, observability, security
+├── BookSlot.Features/          VSA slices — Features/<Area>/<Operation>/*.cs + Shared/
+├── BookSlot.Api/               REST API host (Minimal APIs, JWT)
+├── BookSlot.Web/               Blazor Web App server host (cookie auth + SignalR hub)
+├── BookSlot.Web.Client/        Blazor WASM client assembly (interactive auto)
+└── BookSlot.Worker/            Background jobs (outbox, reminders, webhooks)
 tests/
-├── BookSlot.UnitTests/
-├── BookSlot.IntegrationTests/
-└── BookSlot.ArchitectureTests/   NetArchTest guardrails
+├── BookSlot.UnitTests/         pure unit tests, no I/O
+├── BookSlot.IntegrationTests/  Testcontainers Postgres, end-to-end slice tests
+└── BookSlot.ArchitectureTests/ NetArchTest VSA guardrails
 ```
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the runtime diagram and slice rules.
 
 ## Prerequisites
 
-- .NET 10 SDK (`10.0.201` or newer — pinned in `global.json`)
-- **Docker Desktop** (WSL2 backend) — for the dev stack (PostgreSQL, Redis, MailHog, Seq, Aspire Dashboard). Install from <https://www.docker.com/products/docker-desktop/>.
+- **.NET 10 SDK** (`10.0.201` or newer — pinned in `global.json`)
+- **Docker Desktop** (WSL2 backend on Windows) — for the dev stack
 
-## Dev stack (docker compose)
+## Dev stack
 
 ```powershell
 # optional: copy env defaults
-Copy-Item .env.example .env
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
 
 # start everything in the background
 docker compose up -d
@@ -61,30 +66,70 @@ docker compose down -v
 
 ### Service map
 
-| Service | URL / Port | Purpose |
-| --- | --- | --- |
-| Postgres | `localhost:5432` (`bookslot`/`bookslot`/`bookslot`) | Main DB |
-| Redis | `localhost:6379` | SignalR backplane + distributed cache |
-| MailHog SMTP | `localhost:1025` | App SMTP target (dev email) |
-| MailHog UI | <http://localhost:8025> | Captured email inbox |
-| Seq | <http://localhost:8081> | Structured log UI (Serilog sink) |
-| Aspire Dashboard | <http://localhost:18888> | OpenTelemetry traces/metrics/logs |
-| Aspire OTLP (gRPC) | `localhost:18889` | OTLP ingest endpoint (apps ship here) |
+| Service           | URL / Port                                  | Purpose                                  |
+| ----------------- | ------------------------------------------- | ---------------------------------------- |
+| Postgres          | `localhost:5432` (`bookslot`/`bookslot`)    | Main DB                                  |
+| Redis             | `localhost:6379`                            | SignalR backplane + distributed cache    |
+| MailHog SMTP      | `localhost:1025`                            | App SMTP target (dev email)              |
+| MailHog UI        | <http://localhost:8025>                     | Captured email inbox                     |
+| Seq               | <http://localhost:8081>                     | Structured log UI + OTLP receiver        |
+| Aspire Dashboard  | <http://localhost:18888>                    | Optional OTel UI (image pull may fail)   |
 
-Connection strings and OTLP endpoint are already set in each app's `appsettings.Development.json`.
+Connection strings and OTLP endpoints are pre-wired in each app's `appsettings.Development.json`.
 
 ## Quick start
 
 ```powershell
 # 1. dev stack
-docker compose up -d
+docker compose up -d postgres redis mailhog seq
 
 # 2. solution
-dotnet restore
-dotnet build
-dotnet test
+dotnet restore BookSlot.slnx
+dotnet build BookSlot.slnx
+dotnet test tests/BookSlot.UnitTests/BookSlot.UnitTests.csproj
+dotnet test tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj
+
+# 3. run the apps (separate terminals)
+dotnet run --project src/BookSlot.Api
+dotnet run --project src/BookSlot.Web
+dotnet run --project src/BookSlot.Worker
 ```
 
-## Current status
+The Web host applies migrations and seeds dev data on startup.
 
-Phase 1 — dev environment (docker compose stack + app configs). No runtime behavior yet.
+### Default dev credentials
+
+| Role  | Email                | Password         |
+| ----- | -------------------- | ---------------- |
+| Admin | `admin@bookslot.dev` | `BookSlotDev1!`  |
+
+## Docker images
+
+Production images are built per service via `.github/workflows/docker.yml` and published to GHCR:
+
+```powershell
+docker build -f src/BookSlot.Api/Dockerfile    -t bookslot-api:local    .
+docker build -f src/BookSlot.Web/Dockerfile    -t bookslot-web:local    .
+docker build -f src/BookSlot.Worker/Dockerfile -t bookslot-worker:local .
+```
+
+All three run as non-root, expose `:8080`, and have a `wget`-based liveness probe against `/health/live`.
+
+## Tests
+
+```powershell
+# Unit + arch (fast, no infra)
+dotnet test tests/BookSlot.UnitTests/BookSlot.UnitTests.csproj
+dotnet test tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj
+
+# Integration (Testcontainers spins up Postgres - needs Docker)
+dotnet test tests/BookSlot.IntegrationTests/BookSlot.IntegrationTests.csproj
+```
+
+Coverage settings live in `coverlet.runsettings` (cobertura+opencover).
+
+## Operations
+
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — startup, health checks, common ops tasks, troubleshooting.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow diagram, slice anatomy, multi-tenant model.
+- [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — guidance for AI agents working on this repo.
