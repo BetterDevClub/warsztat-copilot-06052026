@@ -75,6 +75,9 @@ public static class AdminCreateBooking
         /// <summary>Creates the booking — optionally overriding availability checks.</summary>
         public async Task<Result<Response>> HandleAsync(Command command, CancellationToken cancellationToken)
         {
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+
             var now = _clock.GetUtcNow();
 
             var staff = await _db.Staff.AsNoTracking()
@@ -127,7 +130,7 @@ public static class AdminCreateBooking
 
             var bookingResult = Booking.Create(
                 Guid.NewGuid(),
-                _tenant.TenantId!.Value,
+                _tenant.TenantId.Value,
                 command.StaffId,
                 command.ServiceTypeId,
                 command.StartUtc,

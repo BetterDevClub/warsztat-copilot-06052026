@@ -37,3 +37,10 @@ npm-debug.log*
 # Misc
 *.log
 *.swp
+
+# Agent pipeline run artifacts (per-developer, not committed)
+.agent-run/
+
+# User secrets (dotnet user-secrets)
+secrets.json
+*/secrets.json

@@ -13,6 +13,7 @@ using BookSlot.Web.Hubs;
 using BookSlot.Web.Notifications;
 using FluentValidation;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MudBlazor.Services;
@@ -64,6 +65,10 @@ builder.Services.AddAuthorizationBuilder()
 // Server-side publisher for pushing hub events from slice handlers / dashboard.
 builder.Services.AddSingleton<IBookingEventBus, InMemoryBookingEventBus>();
 builder.Services.AddScoped<INotificationsPublisher, SignalRNotificationsPublisher>();
+
+// Bridge the Blazor Server circuit scope to ICurrentTenant.
+// TenantResolutionMiddleware only fires on HTTP — circuit messages bypass it.
+builder.Services.AddScoped<CircuitHandler, TenantCircuitHandler>();
 
 // Cookie authentication tailored for the SSR shell. IdentityCore is already wired;
 // we only need to attach a cookie scheme so SignInManager can persist identity.

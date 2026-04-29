@@ -64,10 +64,13 @@ public static class CreateWebhookEndpoint
         /// <summary>Creates the endpoint.</summary>
         public async Task<Result<Response>> HandleAsync(Command command, CancellationToken cancellationToken)
         {
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+
             var secret = GenerateSecret();
             var result = WebhookEndpoint.Create(
                 Guid.NewGuid(),
-                _tenant.TenantId!.Value,
+                _tenant.TenantId.Value,
                 command.Url,
                 secret,
                 command.SubscribedEvents,

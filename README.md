@@ -137,3 +137,4 @@ Coverage settings live in `coverlet.runsettings` (cobertura+opencover).
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — startup, health checks, common ops tasks, troubleshooting.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow diagram, slice anatomy, multi-tenant model.
 - [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — guidance for AI agents working on this repo.
+- [`.github/AGENTS.md`](.github/AGENTS.md) — 5-stage agentic pipeline (planner → HITL → implementer ↔ verifier → code-reviewer → HITL → pr-commit) with mandatory human checkpoints and long-term memory in [`docs/agent-decisions.md`](docs/agent-decisions.md).

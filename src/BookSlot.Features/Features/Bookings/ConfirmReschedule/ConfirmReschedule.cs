@@ -51,6 +51,9 @@ public static class ConfirmReschedule
             Command command,
             CancellationToken cancellationToken)
         {
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+
             var now = _clock.GetUtcNow();
 
             var original = await _db.Bookings
@@ -77,7 +80,7 @@ public static class ConfirmReschedule
 
             var newBookingResult = Booking.Create(
                 Guid.NewGuid(),
-                _tenant.TenantId!.Value,
+                _tenant.TenantId.Value,
                 reservation.StaffId,
                 reservation.ServiceTypeId,
                 reservation.StartUtc,

@@ -58,7 +58,9 @@ public static class RequestPasswordReset
         {
             ArgumentNullException.ThrowIfNull(command);
 
-            var tenantId = _tenant.TenantId!.Value;
+            if (_tenant.TenantId is null)
+                return Result.Failure(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+            var tenantId = _tenant.TenantId.Value;
             var normalized = _users.NormalizeEmail(command.Email);
             var user = await _db.Users
                 .FirstOrDefaultAsync(u => u.TenantId == tenantId && u.NormalizedEmail == normalized, cancellationToken)

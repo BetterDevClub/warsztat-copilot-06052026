@@ -72,6 +72,9 @@ public static class CreateBooking
         /// <summary>Creates the booking in a single round-trip.</summary>
         public async Task<Result<Response>> HandleAsync(Command command, CancellationToken cancellationToken)
         {
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+
             var now = _clock.GetUtcNow();
 
             // Load reservation (global tenant filter applied automatically).
@@ -114,7 +117,7 @@ public static class CreateBooking
 
             var bookingResult = Booking.Create(
                 Guid.NewGuid(),
-                _tenant.TenantId!.Value,
+                _tenant.TenantId.Value,
                 reservation.StaffId,
                 reservation.ServiceTypeId,
                 reservation.StartUtc,

@@ -68,6 +68,9 @@ public static class CreateApiKey
                 return Result.Failure<Response>(ApiKeyErrors.Unauthenticated);
             }
 
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+
             var secret = TokenHasher.NewOpaqueToken(24);
             var prefix = KeyPrefix + TokenHasher.NewOpaqueToken(6);
             var plainText = $"{prefix}.{secret}";
@@ -76,7 +79,7 @@ public static class CreateApiKey
             var key = new ApiKey
             {
                 Id = Guid.NewGuid(),
-                TenantId = _tenant.TenantId!.Value,
+                TenantId = _tenant.TenantId.Value,
                 Name = command.Name,
                 Prefix = prefix,
                 KeyHash = hash,

@@ -41,6 +41,9 @@ public static class GetTenantSettings
         /// <summary>Fetches the settings for the resolved tenant.</summary>
         public async Task<Result<Response>> HandleAsync(CancellationToken cancellationToken)
         {
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+
             var settings = await _db.TenantSettings
                 .AsNoTracking()
                 .FirstOrDefaultAsync(cancellationToken)
@@ -52,7 +55,7 @@ public static class GetTenantSettings
             }
 
             return Result.Success(new Response(
-                _tenant.TenantId!.Value,
+                _tenant.TenantId.Value,
                 settings.TimeZoneId,
                 settings.BookingWindowDays,
                 settings.ContactEmail,

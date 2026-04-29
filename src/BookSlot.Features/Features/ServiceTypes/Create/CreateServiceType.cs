@@ -68,7 +68,9 @@ public static class CreateServiceType
         {
             ArgumentNullException.ThrowIfNull(command);
 
-            var tenantId = _tenant.TenantId!.Value;
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+            var tenantId = _tenant.TenantId.Value;
 
             var slugResult = Slug.Create(command.Slug);
             if (slugResult.IsFailure)

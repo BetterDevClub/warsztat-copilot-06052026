@@ -64,3 +64,20 @@ dotnet test  tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj 
 4. At least one unit test for the handler; at least one integration test for the endpoint if it touches the DB.
 5. `dotnet build`, unit tests, and architecture tests all green.
 6. If the change exposes new public surface, update `docs/ARCHITECTURE.md` or `docs/RUNBOOK.md` as appropriate.
+
+## Agentic workflow
+
+Non-trivial changes go through the 5-stage pipeline defined under `.github/agents/`:
+
+```
+prompt → planner → ⏸ HITL #1 ⏸ → implementer ↔ verifier (≤3 cycles) → code-reviewer → ⏸ HITL #2 ⏸ → pr-commit
+```
+
+- **5 agents:** `planner`, `implementer`, `verifier`, `code-reviewer`, `pr-commit` (+ `orchestrator`). Each is mirrored in two locations with platform-native frontmatter: `.github/agents/<name>.agent.md` (GitHub Copilot) and `.claude/agents/<name>.md` (Claude Code). Bodies are kept identical; verify with `pwsh ./scripts/agents-check-drift.ps1`.
+- **Two mandatory HITL checkpoints:** after `planner` (approve `plan.md`) and after `code-reviewer` (approve `review.md` + diff). The orchestrator **never auto-approves on the human's behalf** — there is no `--yolo` flag, no fallback "default approve" on timeout. `awaiting_human` is a hard wait.
+- **Scope limiting:** `implementer` may write only under `src/BookSlot.Features/**`, `src/BookSlot.Domain/**`, `src/BookSlot.Infrastructure/**`, `tests/**` and the two doc files. It is explicitly denied write access to `.github/workflows/**`, `.github/agents/**`, `.claude/agents/**`, `Directory.*.props`, `global.json`, `BookSlot.slnx`, `.editorconfig`. `verifier` and `code-reviewer` are read-only. Only `pr-commit` may touch `docs/agent-decisions.md`. (Scope rules live in each agent's body — they're enforced via prompt, not via frontmatter, since neither Claude Code nor Copilot has a native `scope_allow` field.)
+- **Iteration guard:** the implementer ↔ verifier loop is capped at 3 cycles; on the 4th attempt the run goes `BLOCKED` and is escalated to a human with the full context dump. Each agent also has a 10-minute timeout per iteration.
+- **Run artifacts** live under `./.agent-run/<run-id>/` (gitignored): `prompt.md`, `plan.md`, `plan.approved.md`, `implementation/`, `verify-report.md`, `review.md`, `review.approved.md`, `pr-body.md`, `state.json`.
+- **Long-term memory — `docs/agent-decisions.md`:** an append-only log written by `pr-commit` after each run. It captures the deltas between every agent's output (`plan.md`, `review.md`) and the human-approved version (`plan.approved.md`, `review.approved.md`). Sections labeled `### Generalize as rule:` are loaded into the system prompts of `planner` and `implementer` on every subsequent run, so each correction permanently improves the agents' behavior for this repo.
+
+Operator quickstart: [`.github/AGENTS.md`](AGENTS.md).

@@ -70,6 +70,9 @@ public static class CreateReservation
         /// <summary>Attempts to create a slot reservation atomically.</summary>
         public async Task<Result<Response>> HandleAsync(Command command, CancellationToken cancellationToken)
         {
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+
             var now = _clock.GetUtcNow();
 
             // Redis lock key is scoped to tenant + staff + start time to allow
@@ -94,7 +97,7 @@ public static class CreateReservation
 
             var reservation = SlotReservation.Create(
                 Guid.NewGuid(),
-                _tenant.TenantId!.Value,
+                _tenant.TenantId.Value,
                 command.StaffId,
                 command.ServiceTypeId,
                 command.StartUtc,

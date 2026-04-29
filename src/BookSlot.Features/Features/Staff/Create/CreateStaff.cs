@@ -50,7 +50,9 @@ public static class CreateStaff
         public async Task<Result<Response>> HandleAsync(Command command, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(command);
-            var tenantId = _tenant.TenantId!.Value;
+            if (_tenant.TenantId is null)
+                return Result.Failure<Response>(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+            var tenantId = _tenant.TenantId.Value;
 
             var result = StaffMember.Create(Guid.NewGuid(), tenantId, command.DisplayName, command.Title, command.Email, _clock.GetUtcNow());
             if (result.IsFailure)

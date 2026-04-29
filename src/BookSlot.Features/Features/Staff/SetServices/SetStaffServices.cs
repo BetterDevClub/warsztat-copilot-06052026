@@ -42,7 +42,9 @@ public static class SetStaffServices
         public async Task<Result> HandleAsync(Guid staffId, Command command, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(command);
-            var tenantId = _tenant.TenantId!.Value;
+            if (_tenant.TenantId is null)
+                return Result.Failure(Error.Unauthorized("Tenant.Unresolved", "Current tenant could not be resolved."));
+            var tenantId = _tenant.TenantId.Value;
 
             var staffExists = await _db.Staff.AnyAsync(s => s.Id == staffId, cancellationToken).ConfigureAwait(false);
             if (!staffExists) return Result.Failure(StaffErrors.NotFound);
