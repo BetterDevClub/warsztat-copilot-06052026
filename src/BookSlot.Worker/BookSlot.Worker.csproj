@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-BookSlot.Worker-89833b6a-59cf-4828-8af7-9b729b245cc4</UserSecretsId>
+    <!-- dotnet restore currently fails on NU1902 (audit) with TreatWarningsAsErrors=true. -->
+    <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
 
   <ItemGroup>

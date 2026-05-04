@@ -48,6 +48,33 @@ so we keep a complete audit trail of every run.
 
 <!-- New entries are appended below, newest first. Format above. -->
 
+## 2026-05-04 — Internal booking notes (`feature/booking-add-note`)
+
+### Plan corrections (HITL #1)
+
+- **Was:** FK delete behavior `ON DELETE CASCADE` (planner's default — if a booking is deleted, its notes are deleted too).
+- **Corrected to:** `ON DELETE RESTRICT` — booking cannot be deleted while notes exist.
+- **Reason:** Human explicitly chose RESTRICT to preserve audit trail integrity; notes are internal records that should not be silently dropped when a booking is removed.
+- **Generalize as rule:** When adding a child collection that represents an audit trail or internal record, default the FK to `ON DELETE RESTRICT`, not `CASCADE`. Use CASCADE only when the child is strictly presentational or disposable.
+
+### Review corrections (HITL #2)
+
+- **Was:** Code-reviewer flagged FK RESTRICT as a BLOCKING finding (mismatch with plan.md).
+- **Corrected to:** False alarm — reviewer read `plan.md` instead of `plan.approved.md`; the implementation correctly matches the human-approved plan.
+- **Reason:** The reviewer agent must always diff against `plan.approved.md`, not `plan.md`.
+- **Generalize as rule:** The code-reviewer must validate the implementation against `plan.approved.md` (the human-approved version), never against the raw `plan.md`. Divergence from `plan.md` that aligns with `plan.approved.md` is correct, not a finding.
+
+### Iterations
+
+- implementer↔verifier cycles: 1 (verifier failed on pre-existing NU1902 build errors in test projects not covered by implementer's NuGetAudit fix; resolved by extending fix to all test `.csproj` files)
+- final verifier status: PASS
+
+### Files (skrót)
+
+- created: 7 (BookingNote.cs, BookingNoteConfiguration.cs, migration × 2, AddBookingNote.cs, AddBookingNoteHandlerTests.cs, pr-body.md)
+- modified: 10 (BookingErrors.cs, BookingFeatureErrors.cs, FeaturesAssemblyMarker.cs, AppDbContext.cs, ModelSnapshot.cs, 5 × NuGetAudit .csproj fix)
+- deleted: 0
+
 ## 2026-01-01 — pipeline bootstrap (placeholder)
 
 ### No corrections — pipeline output accepted as-is.

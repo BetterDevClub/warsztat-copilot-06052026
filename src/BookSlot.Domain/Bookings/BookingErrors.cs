@@ -16,4 +16,8 @@ internal static class BookingErrors
     internal static Error CannotMarkNoShowInStatus(BookingStatus status) =>
         Error.Validation("Booking.CannotMarkNoShow",
             $"Only confirmed bookings can be marked as no-show (current status: '{status}').");
+
+    internal static readonly Error NotesTooMany =
+        Error.Validation("BookingNote.TooMany",
+            $"A booking can have at most {BookingNote.MaxNotesPerBooking} notes.");
 }

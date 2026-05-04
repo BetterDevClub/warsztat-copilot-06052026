@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BookSlot.Domain\BookSlot.Domain.csproj" />
     <ProjectReference Include="..\..\src\BookSlot.Features\BookSlot.Features.csproj" />
+    <ProjectReference Include="..\..\src\BookSlot.Infrastructure\BookSlot.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

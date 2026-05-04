@@ -1,3 +1,7 @@
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("BookSlot.UnitTests")]
+
 namespace BookSlot.Features;
 
 /// <summary>
