@@ -1,0 +1,160 @@
+name: .NET CI Pipeline
+
+# Produkcyjny CI workflow dla .NET 10 z VSA BookSlot
+# Zawiera: restore → build Release → test (unit/arch/integration) → coverage → publish artifacts
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege defaults — CI only reads repo content; jobs override per-step if write is needed
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  BUILD_CONFIGURATION: Release
+
+jobs:
+  build-test:
+    name: Build & Test (.NET 10)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout with full history for better coverage/blame tools
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Setup .NET SDK from global.json (10.0.201, rollForward: latestFeature)
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Cache NuGet packages for faster restores
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # Restore dependencies for the entire solution
+      - name: Restore dependencies
+        run: dotnet restore BookSlot.slnx --nologo
+
+      # Build in Release configuration (TreatWarningsAsErrors enforced)
+      - name: Build solution
+        run: dotnet build BookSlot.slnx -c ${{ env.BUILD_CONFIGURATION }} --no-restore --nologo
+
+      # Unit tests: fast, no I/O, always run
+      - name: Run Unit Tests
+        run: |
+          dotnet test tests/BookSlot.UnitTests/BookSlot.UnitTests.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            --logger "trx;LogFileName=unit-tests.trx" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory TestResults \
+            --nologo
+
+      # Architecture tests: NetArchTest VSA guardrails, always run
+      - name: Run Architecture Tests
+        run: |
+          dotnet test tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            --logger "trx;LogFileName=architecture-tests.trx" \
+            --results-directory TestResults \
+            --nologo
+
+      # Integration tests: Testcontainers (Docker), expensive — skip on PRs unless labeled
+      - name: Run Integration Tests
+        if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-integration')
+        run: |
+          dotnet test tests/BookSlot.IntegrationTests/BookSlot.IntegrationTests.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            --logger "trx;LogFileName=integration-tests.trx" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory TestResults \
+            --nologo
+        continue-on-error: false
+
+      # Upload test results and coverage (always, even on failure)
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: TestResults/**/*.trx
+          retention-days: 30
+
+      - name: Upload code coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-${{ github.run_number }}
+          path: TestResults/**/coverage.cobertura.xml
+          retention-days: 30
+
+      # Publish test results as PR comment / check run
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: TestResults/**/*.trx
+          check_name: Test Results
+          comment_mode: off
+
+  publish:
+    name: Publish Artifacts
+    runs-on: ubuntu-latest
+    needs: build-test
+    # Only publish on push to main (after successful tests)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependencies
+        run: dotnet restore BookSlot.slnx --nologo
+
+      - name: Build solution
+        run: dotnet build BookSlot.slnx -c ${{ env.BUILD_CONFIGURATION }} --no-restore --nologo
+
+      # Publish API project for deployment
+      - name: Publish BookSlot.Api
+        run: |
+          dotnet publish src/BookSlot.Api/BookSlot.Api.csproj \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            -o publish/api \
+            --nologo
+
+      # Upload published API as artifact for deployment pipeline
+      - name: Upload API artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookslot-api-${{ github.sha }}
+          path: publish/api
+          retention-days: 7
