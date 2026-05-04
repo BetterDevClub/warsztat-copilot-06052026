@@ -12,6 +12,17 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
+  agents-drift:
+    name: Agents drift check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify agent mirrors are byte-identical
+        shell: pwsh
+        run: pwsh -NoProfile ./scripts/agents-check-drift.ps1
+
   build-and-test:
     name: Build + tests
     runs-on: ubuntu-latest

@@ -2,14 +2,21 @@
 
 ## Default budgets
 
-| Loop / agent                   | Max iterations | What happens on overflow |
-|--------------------------------|----------------|--------------------------|
-| planner                        | 1              | One plan per run. Corrections = HITL #1. |
-| implementer ↔ verifier         | **3**          | Stop, status `BLOCKED`, escalate to a human with a full dump. |
-| code-reviewer                  | 1              | One review per diff. Re-review after fixes is a new iteration. |
-| pr-commit                      | 1              | Single invocation. Rebase conflict = STOP, escalate. |
+| Loop / agent                                  | Max iterations | What happens on overflow |
+|-----------------------------------------------|----------------|--------------------------|
+| planner                                       | 1              | One plan per run. Corrections = HITL #1. |
+| implementer ↔ verifier (verifier FAILs)       | **3**          | Stop, status `BLOCKED`, escalate to a human with a full dump. |
+| HITL #2 `REQUEST_CHANGES` re-implementations  | **2** (separate budget) | Stop, status `BLOCKED:review_loop`, escalate. |
+| code-reviewer                                 | 1 per implementer pass | Re-review after a `REQUEST_CHANGES` round is a new iteration (counted in the budget above). |
+| pr-commit                                     | 1              | Single invocation. Rebase conflict = STOP, escalate. |
 
 Every agent also has a **per-iteration timeout: 10 min**. On overflow — `TIMEOUT`, escalate.
+
+The two implementer-touching budgets are **independent** and tracked separately in `state.json`:
+- `iterations.verifier` — increments on every verifier FAIL bounce-back.
+- `iterations.review` — increments on every HITL #2 `REQUEST_CHANGES` bounce-back.
+
+Rationale: a verifier FAIL ("build is red") and a reviewer `REQUEST_CHANGES` ("design issue") are different failure modes. Sharing one cap of 3 used to let a single broken build burn the entire budget before reviewer feedback could be addressed.
 
 ## Definition of an "iteration" in the implementer ↔ verifier loop
 

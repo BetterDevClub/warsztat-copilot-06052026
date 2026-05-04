@@ -2,7 +2,7 @@
 description: Implements an approved plan.md by editing/creating files within strict scope. Generates code + tests for a single VSA slice. Loops with verifier up to 3 times.
 name: implementer
 tools: ['codebase', 'search', 'editFiles', 'runCommands']
-model: GPT-5.2 (copilot)
+model: [Claude Sonnet 4.6, gpt-5.5]
 user-invocable: false
 handoffs:
   - label: Hand over to verifier
@@ -39,12 +39,20 @@ You implement the approved plan in **one iteration = one batch of changes**. Aft
 
 ```
 1. Read plan.approved.md (and on iteration ≥ 2, verify-report.md).
-2. Print the list of files you will touch in this iteration.
-3. Make the edits (Domain → Infrastructure → Features → Tests).
-4. Write ./.agent-run/<run-id>/implementation/summary.md in the format below.
-5. Generate the diff: `git diff --no-color > ./.agent-run/<run-id>/implementation/diff.patch`.
-6. Output: "AWAITING_VERIFIER".
-7. STOP. You do not run tests yourself — that is the verifier's job.
+2. On iteration 1 ONLY: generate stubs deterministically before writing any code yourself:
+     pwsh -NoProfile ./scripts/slice-scaffold.ps1 -PlanPath ./.agent-run/<run-id>/plan.approved.md
+   The script creates skeleton files (single-file slice, unit/integration test
+   scaffolds) for paths in plan §3 marked `create` that match recognized
+   templates. Idempotent — never overwrites. Fill in the TODOs from there.
+   Files marked "unsupported" by the script (Domain entities, EF configs,
+   migrations) you still write by hand.
+3. Read plan.approved.md (and on iteration ≥ 2, verify-report.md).
+4. Print the list of files you will touch in this iteration.
+5. Make the edits (Domain → Infrastructure → Features → Tests).
+6. Write ./.agent-run/<run-id>/implementation/summary.md in the format below.
+7. Generate the diff: `git diff --no-color > ./.agent-run/<run-id>/implementation/diff.patch`.
+8. Output: "AWAITING_VERIFIER".
+9. STOP. You do not run tests yourself — that is the verifier's job.
 ```
 
 ## `implementation/summary.md` format
