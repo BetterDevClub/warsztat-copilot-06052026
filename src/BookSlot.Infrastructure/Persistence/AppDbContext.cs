@@ -59,6 +59,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     /// <summary>Confirmed and historical appointments.</summary>
     public DbSet<Domain.Bookings.Booking> Bookings => Set<Domain.Bookings.Booking>();
 
+    /// <summary>Internal staff notes attached to bookings. Tenant-filtered via <see cref="ITenantScoped"/>.</summary>
+    public DbSet<Domain.Bookings.BookingNote> BookingNotes => Set<Domain.Bookings.BookingNote>();
+
     /// <summary>Templates for recurring booking series.</summary>
     public DbSet<Domain.Bookings.RecurringBooking> RecurringBookings => Set<Domain.Bookings.RecurringBooking>();
 

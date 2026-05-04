@@ -28,4 +28,8 @@ internal static class BookingFeatureErrors
 
     internal static readonly Error StaffNotFound =
         Error.NotFound("Booking.StaffNotFound", "Staff member not found or is no longer active.");
+
+    internal static readonly Error NotesLimitReached =
+        Error.Validation("Booking.NotesLimitReached",
+            $"This booking already has the maximum number of notes ({BookSlot.Domain.Bookings.BookingNote.MaxNotesPerBooking}).");
 }
