@@ -3,7 +3,7 @@ name: Copilot PR Review
 on:
   pull_request:
     branches:
-      - master
+      - main
       - develop
     types:
       - opened
@@ -51,11 +51,15 @@ jobs:
       
       - name: Run PR review skill
         env:
-          # COPILOT_GITHUB_TOKEN: Token with Copilot API access (requires GitHub Copilot subscription)
-          # In most orgs, GITHUB_TOKEN has Copilot access if the org has Copilot Business/Enterprise
-          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Dedicated token from a user account with Copilot access.
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ -z "${COPILOT_GITHUB_TOKEN}" ]; then
+            echo "Missing secret: COPILOT_GITHUB_TOKEN"
+            echo "Create a repository or organization secret named COPILOT_GITHUB_TOKEN using a token from a GitHub user with Copilot access."
+            exit 1
+          fi
           copilot \
             -p "Use the pr-review skill to review GitHub pull request #${{ github.event.pull_request.number }} in this repository. Follow the skill end-to-end: verify PR metadata, review the diff against BookSlot mandates, post material findings as inline comments, skip style-only feedback, and clearly state if no material findings exist." \
             -s \
