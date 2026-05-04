@@ -36,11 +36,10 @@ jobs:
         with:
           fetch-depth: 0  # Full history required for diff comparison
       
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
       
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
