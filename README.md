@@ -139,17 +139,11 @@ Coverage settings live in `coverlet.runsettings` (cobertura+opencover).
 - [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — guidance for AI agents working on this repo.
 - [`.github/AGENTS.md`](.github/AGENTS.md) — 5-stage agentic pipeline (planner → HITL → implementer ↔ verifier → code-reviewer → HITL → pr-commit) with mandatory human checkpoints and long-term memory in [`docs/agent-decisions.md`](docs/agent-decisions.md).
 
-## Workshop Materials
+## Skills & Workflows
 
-Ready-to-use tools, checklists, and recipes for workshop participants:
+Code quality tools and automation:
 
-- [`.github/prompts/refactor.prompt.md`](.github/prompts/refactor.prompt.md) — structured prompt for safe legacy code refactoring (explicit pre-conditions, rollback strategy, side-effect audit).
-- [`docs/code-review/ai-code-review-checklist.md`](docs/code-review/ai-code-review-checklist.md) — AI code review checklist: null safety, IDisposable leaks, side effects in pure functions, happy-path-only testing, tenant scope violations.
-- [`.github/skills/pr-review/SKILL.md`](.github/skills/pr-review/SKILL.md) — PR review skill (Principal-level mandates: VSA guardrails, Result<T>, tenant filter, no Repository in slice). Run before submitting PR.
-- [`.github/skills/safe-refactor/SKILL.md`](.github/skills/safe-refactor/SKILL.md) — safe refactor skill (phase-by-phase refactoring workflow with explicit rollback points). Use when rebuilding complex modules.
-- [`.github/skills/ci-yaml-author/SKILL.md`](.github/skills/ci-yaml-author/SKILL.md) — CI YAML author skill (generates/modifies GitHub Actions workflows with best practices: caching, matrix, secrets, OIDC). Use when adding new CI/CD jobs.
-- [`.github/pull_request_template.md`](.github/pull_request_template.md) — PR template (sections: what and why, how tested, AI review checklist, self-review, breaking changes, observability). Fill out before submitting.
-- [`.github/CODEOWNERS`](.github/CODEOWNERS) — code owners (placeholder teams: `@BetterDevClub/maintainers`, `@BetterDevClub/domain-owners`, etc.). Replace with your teams/users before production.
-- [`.github/workflows/dotnet-ci.yml`](.github/workflows/dotnet-ci.yml) — reference CI for .NET 10 (restore, build, unit tests, architecture tests, integration tests with Testcontainers). Fork/adapt for your own repo.
-- [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) — CD skeleton (build Docker images, push to GHCR, deploy to staging/prod with approval gate). Extend with your target (AKS, ECS, App Service).
-- [`tests/BookSlot.ArchitectureTests/ArchitectureTests.cs`](tests/BookSlot.ArchitectureTests/ArchitectureTests.cs) — architecture test index (NetArchTest): layering, slice isolation, naming conventions, no cross-slice dependencies. Extend for your own guardrails.
+- **Copilot Skills**: [`.github/skills/`](.github/skills/) — PR review, safe refactor, CI YAML authoring. See individual `SKILL.md` files.
+- **Code Review**: [`docs/code-review/`](docs/code-review/) — AI code review checklist and guidelines.
+- **CI/CD**: [`.github/workflows/dotnet-ci.yml`](.github/workflows/dotnet-ci.yml) — automated build, test, and quality checks on PR. [`.github/workflows/copilot-review.yml`](.github/workflows/copilot-review.yml) — AI-powered PR review workflow.
+- **PR Template**: [`.github/pull_request_template.md`](.github/pull_request_template.md) — structured PR checklist.

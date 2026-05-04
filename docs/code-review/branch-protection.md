@@ -22,16 +22,14 @@ This file contains ready-to-copy branch protection configurations for `main` in 
 
 - **Require branches to be up to date before merging** ✅
 - **Status checks that are required:**
-  - `build-and-test` _(job key from `.github/workflows/ci.yml`)_
   - `build-test` _(job key from `.github/workflows/dotnet-ci.yml`)_
-  - `copilot-pr-review` _(if configured, optional)_
+  - `copilot-pr-review` _(job key from `.github/workflows/copilot-review.yml`, optional)_
 
 **⚠️ WARNING — Job key vs Step name:**  
 GitHub branch protection **requires the exact job key name** (the YAML key in `jobs.<key>:`), **not** the `name:` field or step names inside the job. Example:
-- `ci.yml` has `jobs.build-and-test:` (job key) with `name: Build + tests` — required check is **`build-and-test`** (not `Build + tests`).
 - `dotnet-ci.yml` has `jobs.build-test:` (job key) with `name: Build & Test (.NET 10)` — required check is **`build-test`**.
 
-Case-sensitive. If the repo uses both workflows, add both job names to required checks.
+Case-sensitive.
 
 _(Note: jobs must be run at least once to appear in the list. Create a dummy PR to initialize.)_
 
@@ -76,7 +74,6 @@ gh api \
   -H "Accept: application/vnd.github+json" \
   repos/{OWNER}/{REPO}/branches/main/protection \
   -f required_status_checks[strict]=true \
-  -f required_status_checks[contexts][]=build-and-test \
   -f required_status_checks[contexts][]=build-test \
   -f enforce_admins=false \
   -f required_pull_request_reviews[dismiss_stale_reviews]=true \
@@ -97,7 +94,7 @@ gh api \
 **Note:**
 - `required_signatures=false` — change to `true` if you want to require signed commits (GPG/SSH).
 - `enforce_admins=false` — set to `true` to apply rules to administrators as well.
-- **Job keys:** listed `build-and-test` (from `ci.yml`) and `build-test` (from `dotnet-ci.yml`). If you use only one workflow, remove the other.
+- **Job key:** `build-test` from `.github/workflows/dotnet-ci.yml`.
 
 ### Command (new version, recommended, REST API v3+ `checks`)
 
@@ -108,7 +105,6 @@ gh api \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   repos/{OWNER}/{REPO}/branches/main/protection \
   -f required_status_checks[strict]=true \
-  -F required_status_checks[checks][][context]=build-and-test \
   -F required_status_checks[checks][][context]=build-test \
   -f enforce_admins=false \
   -f required_pull_request_reviews[dismiss_stale_reviews]=true \
@@ -135,7 +131,6 @@ gh api \
   -H "Accept: application/vnd.github+json" \
   repos/BetterDevClub/warsztat-copilot-06052026/branches/main/protection \
   -f required_status_checks[strict]=true \
-  -f required_status_checks[contexts][]=build-and-test \
   -f required_status_checks[contexts][]=build-test \
   -f enforce_admins=false \
   -f required_pull_request_reviews[dismiss_stale_reviews]=true \
@@ -183,19 +178,14 @@ These jobs **must** be green before merge (add them in the "Require status check
 
 | Check name (job key) | Workflow file | What it verifies |
 |----------------------|---------------|------------------|
-| `build-and-test` | `.github/workflows/ci.yml` | `dotnet build` + `dotnet test` (unit + arch + integration optionally) — older workflow, triggers on `master`/`main` |
 | `build-test` | `.github/workflows/dotnet-ci.yml` | `dotnet build` + unit tests + architecture tests + integration (with Testcontainers) — production workflow .NET 10, triggers on `main`/`develop` |
 | `copilot-pr-review` _(optional)_ | `.github/workflows/copilot-review.yml` | Automated AI review with GitHub Copilot — additional safety net (if configured) |
 
 **⚠️ CRITICAL WARNING — Job key (not step name):**  
-GitHub branch protection uses **job key** (YAML key in `jobs.<key>:`), **not** the `name:` field or step names. Examples from this repo:
-- `ci.yml` line 15: `jobs.build-and-test:` → required check = **`build-and-test`** (case-sensitive).
-- `dotnet-ci.yml` line 25: `jobs.build-test:` → required check = **`build-test`** (case-sensitive).
+GitHub branch protection uses **job key** (YAML key in `jobs.<key>:`), **not** the `name:` field or step names. Example from this repo:
+- `dotnet-ci.yml` line 24: `jobs.build-test:` → required check = **`build-test`** (case-sensitive).
 
-Step "Architecture tests" **is not** a separate job — it's a step inside `build-and-test` / `build-test`. GitHub doesn't allow enforcing individual steps; required checks work only at the job level.
-
-**If the repo uses both workflows simultaneously:**  
-Add both job keys (`build-and-test` and `build-test`) to required checks — GitHub will match the name to the workflow that actually ran for the PR.
+Step "Architecture tests" **is not** a separate job — it's a step inside `build-test`. GitHub doesn't allow enforcing individual steps; required checks work only at the job level.
 
 **Note:**
 - If you have separate jobs for `dotnet build`, `unit-tests`, `integration-tests`, add each separately to required checks.

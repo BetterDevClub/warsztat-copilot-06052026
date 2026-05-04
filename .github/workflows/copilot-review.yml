@@ -1,0 +1,65 @@
+name: Copilot PR Review
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+# Cancel in-progress runs for the same PR or ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read         # Required to checkout code
+  pull-requests: write   # Required to post PR review comments
+
+jobs:
+  copilot-pr-review:
+    name: Copilot PR Review
+    runs-on: ubuntu-latest
+    
+    # Skip draft PRs and forked PRs (forks cannot safely use GITHUB_TOKEN for comments)
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required for diff comparison
+      
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+      
+      - name: Verify gh CLI authentication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth status
+      
+      - name: Run PR review skill
+        env:
+          # COPILOT_GITHUB_TOKEN: Token with Copilot API access (requires GitHub Copilot subscription)
+          # In most orgs, GITHUB_TOKEN has Copilot access if the org has Copilot Business/Enterprise
+          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          copilot \
+            -p "Use the pr-review skill to review GitHub pull request #${{ github.event.pull_request.number }} in this repository. Follow the skill end-to-end: verify PR metadata, review the diff against BookSlot mandates, post material findings as inline comments, skip style-only feedback, and clearly state if no material findings exist." \
+            -s \
+            --allow-tool='read,shell(git:*),shell(gh:*)' \
+            --no-ask-user \
+            --model gpt-5.3-codex

@@ -1,8 +1,5 @@
 name: .NET CI Pipeline
 
-# Produkcyjny CI workflow dla .NET 10 z VSA BookSlot
-# Zawiera: restore → build Release → test (unit/arch/integration) → coverage → publish artifacts
-
 on:
   push:
     branches: [main, develop]
@@ -10,12 +7,10 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
-# Cancel in-progress runs for the same branch/PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege defaults — CI only reads repo content; jobs override per-step if write is needed
 permissions:
   contents: read
 
@@ -31,19 +26,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout with full history for better coverage/blame tools
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # Setup .NET SDK from global.json (10.0.201, rollForward: latestFeature)
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
-      # Cache NuGet packages for faster restores
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -52,15 +42,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      # Restore dependencies for the entire solution
       - name: Restore dependencies
         run: dotnet restore BookSlot.slnx --nologo
 
-      # Build in Release configuration (TreatWarningsAsErrors enforced)
       - name: Build solution
         run: dotnet build BookSlot.slnx -c ${{ env.BUILD_CONFIGURATION }} --no-restore --nologo
 
-      # Unit tests: fast, no I/O, always run
       - name: Run Unit Tests
         run: |
           dotnet test tests/BookSlot.UnitTests/BookSlot.UnitTests.csproj \
@@ -71,7 +58,6 @@ jobs:
             --results-directory TestResults \
             --nologo
 
-      # Architecture tests: NetArchTest VSA guardrails, always run
       - name: Run Architecture Tests
         run: |
           dotnet test tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj \
@@ -81,7 +67,6 @@ jobs:
             --results-directory TestResults \
             --nologo
 
-      # Integration tests: Testcontainers (Docker), expensive — skip on PRs unless labeled
       - name: Run Integration Tests
         if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-integration')
         run: |
@@ -94,7 +79,6 @@ jobs:
             --nologo
         continue-on-error: false
 
-      # Upload test results and coverage (always, even on failure)
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -111,7 +95,6 @@ jobs:
           path: TestResults/**/coverage.cobertura.xml
           retention-days: 30
 
-      # Publish test results as PR comment / check run
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
