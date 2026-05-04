@@ -52,13 +52,18 @@ jobs:
       
       - name: Run PR review skill
         env:
-          # Dedicated token from a user account with Copilot access.
+          # Dedicated fine-grained PAT from a user account with Copilot access.
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "${COPILOT_GITHUB_TOKEN}" ]; then
             echo "Missing secret: COPILOT_GITHUB_TOKEN"
-            echo "Create a repository or organization secret named COPILOT_GITHUB_TOKEN using a token from a GitHub user with Copilot access."
+            echo "Create a repository or organization secret named COPILOT_GITHUB_TOKEN using a fine-grained PAT from a GitHub user with Copilot access."
+            exit 1
+          fi
+          if [[ "${COPILOT_GITHUB_TOKEN}" == ghp_* ]]; then
+            echo "Invalid secret: COPILOT_GITHUB_TOKEN is a classic PAT (ghp_)."
+            echo "Copilot CLI requires a fine-grained PAT (github_pat_) or another supported Copilot auth method."
             exit 1
           fi
           copilot \
