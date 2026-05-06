@@ -51,6 +51,23 @@ The structured greps inside `review-input.md` already pre-flag candidates for th
 - Invariants not in `repo-context.md` / `copilot-instructions.md` / `agent-decisions.md`.
 - Anything in files listed under "Files stripped (out of scope)" in `review-input.md` — those should not be in the diff at all; the verifier will catch them as a scope violation.
 
+## Production code review extras (Stapp module)
+
+These four categories extend the base checklist with production-readiness checks from the workshop module. See `docs/code-review/ai-code-review-checklist.md` for detailed examples and rationale.
+
+| Category | What to check | Default severity |
+|----------|---------------|------------------|
+| **Null safety** | Every `FirstOrDefault` / `FindAsync` / nullable return must have a guard (`if (x is null) return Result.Failure`) before dereference. No unguarded `.Value` on `T?`. EF Core nullable columns map to `T?`, non-nullable to `T`. | **Major** |
+| **IDisposable / resource leaks** | Every `MemoryStream`, `StreamWriter`, manual `DbContext` creation wrapped in `using` / `await using`. No `IDisposable` fields in non-disposable classes. Test fixtures (`WebApplicationFactory`) must be `await using`. | **Major** |
+| **Side effects** | Constructors do NOT perform I/O (database, HTTP, filesystem). Getters/calculators do NOT mutate state. Domain entity setters are `private` / `init` where business logic requires encapsulation. Handler does NOT call external APIs synchronously before `SaveChangesAsync` (use outbox instead). | **Major** |
+| **Happy-path-only tests** | Every new public operation (endpoint) has at least **one success test + one failure test** (404/400/validation error). Validators have tests for each error code. Integration tests check non-200 status codes. | **Blocker** (if zero error-path tests for new public API) / **Major** (if some success tests but zero failure tests) |
+
+**When to flag:**
+- Null safety: flag as **Major** any dereference without prior null check or Result.Failure guard.
+- IDisposable: flag as **Major** any `IDisposable` local variable not in `using` / `await using`.
+- Side effects: flag as **Major** any I/O in constructor, or public setter on domain entity where plan.approved.md shows encapsulated business logic.
+- Happy-path-only: flag as **Blocker** if plan.approved.md required "test success + test failure" and only success tests exist; flag as **Major** if failure tests are incomplete (e.g., validator has 3 error codes but only 1 is tested).
+
 ## Output: `./.agent-run/<run-id>/review.md`
 
 ```markdown

@@ -227,3 +227,20 @@ The result: every HITL correction is permanent and reduces future corrections on
 ## Live demo task
 
 A worked example of the full pipeline lives in [`docs/agent-pipeline-example/`](../docs/agent-pipeline-example/) — every artifact (`prompt.md`, `plan.md`, `plan.approved.md`, `verify-report.md`, `review.md`, `review.approved.md`, `agent-decisions.delta.md`) is shown as it would look in a real `./.agent-run/<run-id>/` folder.
+
+---
+
+## Production module quick links
+
+Workshop materials:
+
+- `.github/prompts/refactor.prompt.md` — safe refactor prompt
+- `docs/code-review/ai-code-review-checklist.md` — AI review checklist
+- `.github/skills/pr-review/SKILL.md` — PR review skill
+- `.github/skills/safe-refactor/SKILL.md` — safe refactor skill
+- `.github/skills/ci-yaml-author/SKILL.md` — CI YAML skill
+- `.github/pull_request_template.md` — PR template
+- `.github/CODEOWNERS` — code owners
+- `.github/workflows/dotnet-ci.yml` — CI workflow
+- `.github/workflows/deploy.yml` — CD workflow
+- `tests/BookSlot.ArchitectureTests/ArchitectureTests.cs` — architecture tests index

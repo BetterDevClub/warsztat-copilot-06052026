@@ -1,0 +1,74 @@
+name: Copilot PR Review
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+# Cancel in-progress runs for the same PR or ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read         # Required to checkout code
+  pull-requests: write   # Required to post PR review comments
+
+jobs:
+  copilot-pr-review:
+    name: Copilot PR Review
+    runs-on: ubuntu-latest
+    
+    # Skip draft PRs and forked PRs (forks cannot safely use GITHUB_TOKEN for comments)
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required for diff comparison
+      
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+      
+      - name: Verify gh CLI authentication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth status
+      
+      - name: Run PR review skill
+        env:
+          # Dedicated fine-grained PAT from a user account with Copilot access.
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "${COPILOT_GITHUB_TOKEN}" ]; then
+            echo "Missing secret: COPILOT_GITHUB_TOKEN"
+            echo "Create a repository or organization secret named COPILOT_GITHUB_TOKEN using a fine-grained PAT from a GitHub user with Copilot access."
+            exit 1
+          fi
+          if [[ "${COPILOT_GITHUB_TOKEN}" == ghp_* ]]; then
+            echo "Invalid secret: COPILOT_GITHUB_TOKEN is a classic PAT (ghp_)."
+            echo "Copilot CLI requires a fine-grained PAT (github_pat_) or another supported Copilot auth method."
+            exit 1
+          fi
+          copilot \
+            -p "Use the pr-review skill to review GitHub pull request #${{ github.event.pull_request.number }} in this repository. Follow the skill end-to-end: verify PR metadata, review the diff against BookSlot mandates, post material findings as inline comments, skip style-only feedback, and clearly state if no material findings exist." \
+            -s \
+            --allow-tool='read,shell(git:*),shell(gh:*)' \
+            --no-ask-user \
+            --model gpt-5.3-codex

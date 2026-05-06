@@ -1,0 +1,29 @@
+# CODEOWNERS — workshop placeholders
+#
+# ⚠️ These are sample team names for educational purposes.
+# In a real repo, replace with your own GitHub teams (@your-org/your-team)
+# or specific users (@username).
+#
+# Documentation: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything — first guard
+*                               @BetterDevClub/maintainers
+
+# Agent files — only the team responsible for the pipeline
+/.github/agents/**              @BetterDevClub/agent-pipeline-owners
+/.claude/agents/**              @BetterDevClub/agent-pipeline-owners
+/docs/agent-decisions.md        @BetterDevClub/agent-pipeline-owners
+
+# CI/CD workflows — requires DevOps review
+/.github/workflows/**           @BetterDevClub/devops
+
+# Domain model — requires architect review
+/src/BookSlot.Domain/**         @BetterDevClub/domain-owners
+
+# Tooling configurations — use caution, impacts everyone
+/Directory.*.props              @BetterDevClub/maintainers
+/global.json                    @BetterDevClub/maintainers
+/.editorconfig                  @BetterDevClub/maintainers
+
+# Architecture tests — only maintainers can modify guardrails
+/tests/BookSlot.ArchitectureTests/** @BetterDevClub/maintainers

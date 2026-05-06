@@ -2,7 +2,7 @@
 
 Multi-tenant SaaS appointment booking platform built on **.NET 10**, **PostgreSQL**, **Redis** and **Blazor Web App**, organized as **Vertical Slice Architecture (VSA)**.
 
-> Built iteratively across 35 phases. The full plan lives in `projekt-startowy.md` and the phase-by-phase progress in the session checkpoint folder.
+> Built iteratively across 35 phases. The full plan lives in `project-brief.md` and the phase-by-phase progress in the session checkpoint folder.
 
 ---
 
@@ -138,3 +138,12 @@ Coverage settings live in `coverlet.runsettings` (cobertura+opencover).
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow diagram, slice anatomy, multi-tenant model.
 - [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — guidance for AI agents working on this repo.
 - [`.github/AGENTS.md`](.github/AGENTS.md) — 5-stage agentic pipeline (planner → HITL → implementer ↔ verifier → code-reviewer → HITL → pr-commit) with mandatory human checkpoints and long-term memory in [`docs/agent-decisions.md`](docs/agent-decisions.md).
+
+## Skills & Workflows
+
+Code quality tools and automation:
+
+- **Copilot Skills**: [`.github/skills/`](.github/skills/) — PR review, safe refactor, CI YAML authoring. See individual `SKILL.md` files.
+- **Code Review**: [`docs/code-review/`](docs/code-review/) — AI code review checklist and guidelines.
+- **CI/CD**: [`.github/workflows/dotnet-ci.yml`](.github/workflows/dotnet-ci.yml) — automated build, test, and quality checks on PR. [`.github/workflows/copilot-review.yml`](.github/workflows/copilot-review.yml) — AI-powered PR review workflow.
+- **PR Template**: [`.github/pull_request_template.md`](.github/pull_request_template.md) — structured PR checklist.
