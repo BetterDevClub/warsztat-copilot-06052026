@@ -51,6 +51,26 @@ dotnet test tests/BookSlot.IntegrationTests/BookSlot.IntegrationTests.csproj   -
 
 `dotnet test` does not accept multiple `*.csproj` arguments in one invocation — run per project.
 
+### Helper scripts (deterministic, called from agents)
+
+To keep token use down and make agents reproducible, mechanical work lives in PowerShell scripts under `scripts/`:
+
+| Script                          | Used by         | Purpose |
+|---------------------------------|-----------------|---------|
+| `agent-run.ps1`                 | orchestrator    | State machine for the run (init / next-agent / verify / hitl-wait / advance / record). Owns `state.json`. |
+| `plan-context.ps1`              | planner         | Pre-computes a repo digest (keywords, similar slices, domain entities, last 10 `Generalize as rule:` entries) → `plan-context.md`. |
+| `lint-plan.ps1`                 | planner         | Static checks on `plan.md` (sections present, table well-formed, paths valid). |
+| `slice-scaffold.ps1`            | implementer     | Idempotent stubs from plan §3: single-file slice + `[Fact(Skip=…)]` test placeholders. |
+| `verify.ps1`                    | verifier        | Pre-checks (test-completeness, migration-check, scope-leak via `scope-check.ps1`) + build/unit/arch/integration. Writes `verify-report.md`. |
+| `scope-check.ps1`               | verifier + git pre-commit hook | Enforces §5 scope-allow / scope-deny. Single source of truth. |
+| `review-precompute.ps1`         | code-reviewer   | Bundles `plan.approved.md` + filtered diff + greps + verifier tail → `review-input.md`. |
+| `lint-review.ps1`               | code-reviewer   | Static checks on `review.md` (Findings table well-formed, severity whitelisted, File:Line valid, Verdict present). |
+| `pr-finalize.ps1`               | pr-commit       | Branch + commit + push + `gh pr create` + 90 s CI poll + delta files (`plan.delta.txt`, `review.delta.txt`). LLM only writes the `agent-decisions.md` entry from the deltas. |
+| `agents-check-drift.ps1`        | CI gate + everyone | SHA256-compares the body of each agent's two mirrors. |
+| `githooks/pre-commit`           | local dev       | Runs `scope-check.ps1 -Agent implementer` against the staged diff. Install with `git config core.hooksPath scripts/githooks`. |
+
+Whenever an agent body says "do X" and X is mechanical, look here first — it's almost certainly a script.
+
 ## 5. Scope-allow-list per agent
 
 | Agent          | Allow (read+write)                                                                                           | Allow (read-only)                | Hard DENY (write) |

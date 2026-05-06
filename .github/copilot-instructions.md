@@ -75,9 +75,22 @@ prompt → planner → ⏸ HITL #1 ⏸ → implementer ↔ verifier (≤3 cycles
 
 - **5 agents:** `planner`, `implementer`, `verifier`, `code-reviewer`, `pr-commit` (+ `orchestrator`). Each is mirrored in two locations with platform-native frontmatter: `.github/agents/<name>.agent.md` (GitHub Copilot) and `.claude/agents/<name>.md` (Claude Code). Bodies are kept identical; verify with `pwsh ./scripts/agents-check-drift.ps1`.
 - **Two mandatory HITL checkpoints:** after `planner` (approve `plan.md`) and after `code-reviewer` (approve `review.md` + diff). The orchestrator **never auto-approves on the human's behalf** — there is no `--yolo` flag, no fallback "default approve" on timeout. `awaiting_human` is a hard wait.
-- **Scope limiting:** `implementer` may write only under `src/BookSlot.Features/**`, `src/BookSlot.Domain/**`, `src/BookSlot.Infrastructure/**`, `tests/**` and the two doc files. It is explicitly denied write access to `.github/workflows/**`, `.github/agents/**`, `.claude/agents/**`, `Directory.*.props`, `global.json`, `BookSlot.slnx`, `.editorconfig`. `verifier` and `code-reviewer` are read-only. Only `pr-commit` may touch `docs/agent-decisions.md`. (Scope rules live in each agent's body — they're enforced via prompt, not via frontmatter, since neither Claude Code nor Copilot has a native `scope_allow` field.)
-- **Iteration guard:** the implementer ↔ verifier loop is capped at 3 cycles; on the 4th attempt the run goes `BLOCKED` and is escalated to a human with the full context dump. Each agent also has a 10-minute timeout per iteration.
-- **Run artifacts** live under `./.agent-run/<run-id>/` (gitignored): `prompt.md`, `plan.md`, `plan.approved.md`, `implementation/`, `verify-report.md`, `review.md`, `review.approved.md`, `pr-body.md`, `state.json`.
+- **Scope limiting:** `implementer` may write only under `src/BookSlot.Features/**`, `src/BookSlot.Domain/**`, `src/BookSlot.Infrastructure/**`, `tests/**` and the two doc files. It is explicitly denied write access to `.github/workflows/**`, `.github/agents/**`, `.claude/agents/**`, `Directory.*.props`, `global.json`, `BookSlot.slnx`, `.editorconfig`. `verifier` and `code-reviewer` are read-only. Only `pr-commit` may touch `docs/agent-decisions.md`. Enforced deterministically by `scripts/scope-check.ps1` (called from `verify.ps1` and the optional git pre-commit hook in `scripts/githooks/`).
+- **Iteration guard:** two independent budgets — `iterations.verifier` capped at **3** verifier FAIL bounce-backs, `iterations.review` capped at **2** HITL #2 `REQUEST_CHANGES` rounds. Either cap → `BLOCKED` (`blocked` / `blocked:review_loop`) and escalation to a human with the full context dump. Each agent also has a 10-minute timeout per iteration.
+- **Hybrid LLM/script design:** mechanical work (state machine, build/test, scope-check, plan/review lint, slice scaffolding, git/gh, repo digest) lives in PowerShell scripts under `scripts/`; LLM agents do only judgment. Canonical pipeline driver: `scripts/agent-run.ps1`.
+- **Model matrix (per usage-based billing):**
+
+  | Agent           | Copilot                                  | Claude   |
+  |-----------------|------------------------------------------|----------|
+  | `orchestrator`  | `gpt-4.1`                                | `haiku`  |
+  | `planner`       | `Claude Opus 4.7`                        | `opus`   |
+  | `implementer`   | `[Claude Sonnet 4.6, gpt-5.5]`           | `sonnet` |
+  | `verifier`      | (script — no LLM)                        | (script) |
+  | `code-reviewer` | `Claude Haiku 4.5`                       | `haiku`  |
+  | `pr-commit`     | `gpt-4.1`                                | `haiku`  |
+
+- **Run artifacts** live under `./.agent-run/<run-id>/` (gitignored): `prompt.md`, `plan.md`, `plan-context.md`, `plan.approved.md`, `implementation/`, `verify-report.md`, `review-input.md`, `review.md`, `review.approved.md`, `plan.delta.txt`, `review.delta.txt`, `pr-body.md`, `state.json`.
 - **Long-term memory — `docs/agent-decisions.md`:** an append-only log written by `pr-commit` after each run. It captures the deltas between every agent's output (`plan.md`, `review.md`) and the human-approved version (`plan.approved.md`, `review.approved.md`). Sections labeled `### Generalize as rule:` are loaded into the system prompts of `planner` and `implementer` on every subsequent run, so each correction permanently improves the agents' behavior for this repo.
+- **CI gate:** `.github/workflows/ci.yml` runs `agents-check-drift.ps1` on every push/PR — both mirrors must stay byte-identical.
 
 Operator quickstart: [`.github/AGENTS.md`](AGENTS.md).

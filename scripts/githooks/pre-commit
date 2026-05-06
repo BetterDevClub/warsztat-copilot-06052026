@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+# BookSlot pre-commit hook — runs scripts/scope-check.ps1 against the staged diff
+# to catch agent scope violations before they reach the remote.
+#
+# Install:
+#   git config core.hooksPath scripts/githooks
+#
+# Override the agent on a per-commit basis with:
+#   BOOKSLOT_AGENT=pr-commit git commit ...
+# Default = implementer.
+
+set -e
+
+AGENT="${BOOKSLOT_AGENT:-implementer}"
+
+TMP="$(mktemp -t bookslot-pre-commit.XXXXXX.patch)"
+trap 'rm -f "$TMP"' EXIT
+git diff --cached --no-color > "$TMP"
+
+if [ ! -s "$TMP" ]; then
+  exit 0
+fi
+
+if ! command -v pwsh >/dev/null 2>&1; then
+  echo "pre-commit: pwsh (PowerShell 7+) not found — skipping scope-check." >&2
+  exit 0
+fi
+
+if ! pwsh -NoProfile -File scripts/scope-check.ps1 -Agent "$AGENT" -Diff "$TMP" -Quiet; then
+  echo "" >&2
+  echo "pre-commit: scope-check failed for agent='$AGENT'." >&2
+  echo "If you genuinely need to bypass this (rare): git commit --no-verify" >&2
+  exit 1
+fi
+
+exit 0

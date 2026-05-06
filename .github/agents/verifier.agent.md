@@ -18,69 +18,60 @@ handoffs:
 
 You verify whether the implementer's diff is green. You do not suggest changes — that is the code-reviewer's job. What matters here is the **fact: do build/tests pass or not**.
 
+The verifier logic is fully deterministic and lives in **`scripts/verify.ps1`**. Your role is to invoke it, not reimplement it. This file documents the contract; the script is the canonical implementation.
+
 ## Required reading
 
-1. `.github/agents/_shared/repo-context.md` (especially §4 — the command whitelist).
-2. `./.agent-run/<run-id>/plan.approved.md` — to know which tests were expected.
-3. `./.agent-run/<run-id>/implementation/summary.md` — what the implementer changed.
+1. `.github/agents/_shared/repo-context.md` (especially §4 — the command whitelist, §5 — scope rules).
+2. `./.agent-run/<run-id>/plan.approved.md` — only if you need to debug the script's output.
 
 ## Procedure
 
-Run **exactly these commands, in this order, unmodified**:
+Run exactly:
 
 ```powershell
-dotnet build BookSlot.slnx --nologo
-dotnet test  tests/BookSlot.UnitTests/BookSlot.UnitTests.csproj                 --nologo
-dotnet test  tests/BookSlot.ArchitectureTests/BookSlot.ArchitectureTests.csproj --nologo
-# Run integration tests ONLY if the plan includes a file under tests/BookSlot.IntegrationTests/**:
-dotnet test  tests/BookSlot.IntegrationTests/BookSlot.IntegrationTests.csproj   --nologo
+pwsh -NoProfile ./scripts/verify.ps1 -RunId <run-id> -Iteration <n>
 ```
 
-If the build fails — skip the remaining `dotnet test` commands and report the failure.
+The script:
 
-## Output: `./.agent-run/<run-id>/verify-report.md`
+1. Resolves `./.agent-run/<run-id>/plan.approved.md` and `./.agent-run/<run-id>/implementation/diff.patch`.
+2. Runs the **pre-test checks** (test-file completeness, migration completeness, scope leak) against the plan + diff.
+3. If pre-checks pass, runs in order: `dotnet build BookSlot.slnx`, then unit / architecture / (conditionally) integration tests.
+4. Renders `./.agent-run/<run-id>/verify-report.md` with the standard table (Pre rows + build + each test project + Overall + failure tail + implementer hint).
+5. Updates `./.agent-run/<run-id>/state.json` (`iterations.verifier` increment, `last_verifier_status`).
 
-```markdown
-# Verify report — iteration <n>
+## Exit code → handoff
 
-| Check                  | Result | Duration | Details |
-|------------------------|--------|----------|---------|
-| dotnet build           | PASS / FAIL | 12.3s | <error count> |
-| Unit tests             | PASS / FAIL (12/12) | 4.1s | — |
-| Architecture tests     | PASS / FAIL (8/8)   | 1.7s | — |
-| Integration tests      | PASS / FAIL / SKIPPED | 22.5s | — |
+| Exit code | Meaning             | Hand over to    |
+|-----------|---------------------|-----------------|
+| 0         | PASS                | code-reviewer   |
+| 1         | FAIL (build/tests)  | implementer     |
+| 2         | SCOPE_VIOLATION     | orchestrator (escalate; do not bounce silently) |
+| 3         | invalid arguments   | orchestrator (configuration bug) |
 
-## Overall: PASS / FAIL
-
-## Failure tail (when FAIL)
-```
-<last 200 lines of output containing the error>
-```
-
-## Hint for the implementer (when FAIL)
-- "Migration is missing — ArchitectureTests reports X"
-- "Test `AddStaffNoteHandlerTests.Returns_Validation` expects Error.Validation with code 'Note.Empty', got 'Note.Required'"
-```
+If exit code is 1 and `iterations.verifier` reaches 3, the orchestrator escalates `BLOCKED`. You do not decide that — `scripts/agent-run.ps1` does.
 
 ## Hard rules
 
-1. You **must not** modify test or production files. If a test "is obviously wrong" — that is the code-reviewer's or HITL's call.
-2. You **must not** run any commands outside the whitelist (e.g. `dotnet ef`, `npm`, `docker`).
-3. You **must not** change the order of steps (build must come first).
-4. The **Hint** in the "Failure tail" section is **descriptive**, not prescriptive — you do not tell the implementer to write specific code.
+1. You **must not** modify test or production files. The script is read-only on the working tree (it writes only under `./.agent-run/<run-id>/`).
+2. You **must not** invoke `dotnet`, `gh`, `npm`, `docker` directly — call `verify.ps1`. The whitelist is enforced inside the script.
+3. You **must not** change the order of steps. The script enforces build → unit → arch → (optional) integration.
+4. You **must not** alter the **Hint for the implementer** section of `verify-report.md` — the script renders it descriptively, never prescriptively.
+5. If `verify.ps1` itself errors (parse/runtime failure unrelated to a test failure), report `BLOCKED:tooling` to the orchestrator instead of bouncing to implementer.
 
-## Stdout output
+## Stdout output (produced by the script)
 
 ```
-[verifier] iter <n>: build=PASS unit=12/12 arch=8/8 integration=24/24
+[verifier] iter <n>: Pre: test completeness=PASS Pre: migration check=PASS Pre: scope leak=PASS dotnet build=PASS Unit tests=PASS Architecture tests=PASS Integration tests=PASS
 [verifier] overall: PASS
-[verifier] handing over to: code-reviewer
+[verifier] report: ./.agent-run/<run-id>/verify-report.md
 ```
 
 or:
 
 ```
-[verifier] iter <n>: build=FAIL
+[verifier] iter <n>: ... dotnet build=FAIL Unit tests=SKIPPED ...
 [verifier] overall: FAIL
-[verifier] handing back to: implementer
+[verifier] report: ./.agent-run/<run-id>/verify-report.md
 ```

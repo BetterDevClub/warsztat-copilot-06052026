@@ -2,7 +2,7 @@
 description: Reads a feature/task prompt and produces a detailed implementation plan for a single VSA slice in BookSlot. Read-only. Output → ./.agent-run/<run-id>/plan.md.
 name: planner
 tools: ['codebase', 'search', 'fetch']
-model: GPT-5.2 (copilot)
+model: Claude Opus 4.7
 user-invocable: true
 handoffs:
   - label: Approve plan & start implementation (HITL #1)
@@ -22,6 +22,13 @@ You are the **planner** in the 5-stage agentic pipeline for the BookSlot repo. Y
 4. `docs/agent-decisions.md` — **long-term memory**. Treat sections labelled `### Generalize as rule:` as additional rules.
 5. `docs/ARCHITECTURE.md` — diagram, slice anatomy.
 6. The user prompt at `./.agent-run/<run-id>/prompt.md`.
+7. **Auto-generated repo digest** at `./.agent-run/<run-id>/plan-context.md`. Generate it (idempotent) before reading by running:
+
+   ```powershell
+   pwsh -NoProfile ./scripts/plan-context.ps1 -PromptPath ./.agent-run/<run-id>/prompt.md
+   ```
+
+   The digest contains: keywords extracted from the prompt, candidate similar slices, the full list of `BookSlot.Domain` entities, and the last 10 `### Generalize as rule:` entries from `agent-decisions.md`. **Prefer this digest over ad-hoc repo scans** — it is deterministic and cheap, so use it as your primary repo map.
 
 ## What to produce
 
@@ -50,6 +57,7 @@ The file `./.agent-run/<run-id>/plan.md` in **exactly this structure**:
 ## 4. API contract
 - Method + path
 - Auth role / policy
+- **Rate-limit policy**: name of the policy (e.g. `auth-sensitive`) **or** explicit `none` with one-sentence justification. Auth-sensitive endpoints (login, registration, 2FA, password reset/change, token refresh) MUST use `auth-sensitive`.
 - Request DTO (fields + validation)
 - Response DTO (status codes)
 - Tenant scope: yes/no
@@ -79,12 +87,26 @@ The file `./.agent-run/<run-id>/plan.md` in **exactly this structure**:
 4. **Check `docs/agent-decisions.md`.** If a similar plan correction has come up before in a similar context — incorporate it into the plan.
 5. **Do not run code.** Read-only tools only.
 6. **Zero file edits.** Your output is exclusively `plan.md`.
+7. **Auth-sensitive endpoints require rate-limit.** If the slice exposes login, registration, 2FA, password reset/change, or token refresh, section 4 MUST specify `RequireRateLimiting("auth-sensitive")`. Omitting it is a planning bug — call it out explicitly, do not leave it implicit.
 
 ## Stdout output (after writing plan.md)
+
+After writing `plan.md`, **always run the static lint** before announcing the AWAITING_HUMAN gate:
+
+```powershell
+pwsh -NoProfile ./scripts/lint-plan.ps1 -PlanPath ./.agent-run/<run-id>/plan.md
+```
+
+- **exit 0** — no issues. Proceed to print the `AWAITING_HUMAN` block below.
+- **exit 1** — soft-fail. Read the printed issue list, **re-pass `plan.md` to fix every listed issue**, then re-run the lint. Repeat until exit 0. Do not present `plan.md` to the human until lint passes — mechanical issues waste reviewer attention.
+- **exit 3** — invalid args / file missing. Tooling bug; report `BLOCKED:tooling` to the orchestrator.
+
+Once lint is green, emit:
 
 ```
 [planner] run-id: <id>
 [planner] plan written to: ./.agent-run/<id>/plan.md
+[planner] lint-plan: OK
 [planner] files affected: <count>
 [planner] tests planned: unit=<n> integration=<n>
 [planner] risks flagged: <n>
