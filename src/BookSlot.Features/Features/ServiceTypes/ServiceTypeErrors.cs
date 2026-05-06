@@ -14,4 +14,9 @@ internal static class ServiceTypeErrors
     public static readonly Error NotFound = Error.NotFound(
         "ServiceType.NotFound",
         "Service type was not found.");
+
+    /// <summary>One or more of the supplied staff members were not found for the current tenant.</summary>
+    public static readonly Error StaffNotFound = Error.NotFound(
+        "ServiceType.StaffNotFound",
+        "One or more staff members were not found for the current tenant.");
 }

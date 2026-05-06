@@ -4,12 +4,18 @@
 @using System.Globalization
 @using System.Text.Json
 @using BookSlot.Domain.Services
+@using BookSlot.Features.ServiceTypes.BulkAssignStaff
+@using BookSlot.Features.ServiceTypes.GetAssignedStaff
 @using BookSlot.Features.ServiceTypes.GetById
 @using BookSlot.Features.ServiceTypes.SetFormSchema
 @using BookSlot.Features.ServiceTypes.Update
+@using BookSlot.Features.Staff.List
 @inject GetServiceTypeById.Handler GetHandler
 @inject UpdateServiceType.Handler UpdateHandler
 @inject SetServiceTypeFormSchema.Handler SetSchemaHandler
+@inject GetAssignedStaff.Handler GetAssignedStaffHandler
+@inject ListStaff.Handler ListStaffHandler
+@inject BulkAssignStaff.Handler BulkAssignHandler
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
 @inject NavigationManager Nav
@@ -106,6 +112,38 @@ else
                 </MudItem>
             </MudGrid>
         </MudTabPanel>
+        <MudTabPanel Text="Staff" Icon="@Icons.Material.Filled.People">
+            <MudText Class="mb-2">Select staff members who can perform this service.</MudText>
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                To remove assignments, edit the staff member on the Staff page.
+            </MudAlert>
+            @if (_allStaff.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">No active staff members exist yet. Add staff first.</MudAlert>
+            }
+            else
+            {
+                <MudPaper Class="pa-3" Outlined="true">
+                    <MudStack>
+                        @foreach (var staff in _allStaff)
+                        {
+                            var staffId = staff.Id;
+                            var isAssigned = _assignedStaffIds.Contains(staffId);
+                            <MudCheckBox T="bool"
+                                         Value="@(isAssigned || _selectedToAdd.Contains(staffId))"
+                                         ValueChanged="@(on => ToggleStaffToAdd(staffId, on, isAssigned))"
+                                         Disabled="@isAssigned"
+                                         Label="@($"{staff.DisplayName}{(staff.Title is not null ? $" — {staff.Title}" : "")}")" />
+                        }
+                    </MudStack>
+                </MudPaper>
+                <MudButton Class="mt-3" Color="Color.Primary" Variant="Variant.Filled"
+                           Disabled="@(_selectedToAdd.Count == 0)"
+                           OnClick="AssignStaffAsync">
+                    Assign selected (@_selectedToAdd.Count)
+                </MudButton>
+            }
+        </MudTabPanel>
     </MudTabs>
 }
 
@@ -125,7 +163,16 @@ else
     private List<BookingFormField> _fields = new();
     private string? _schemaError;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private IReadOnlyList<ListStaff.Item> _allStaff = Array.Empty<ListStaff.Item>();
+    private HashSet<Guid> _assignedStaffIds = new();
+    private HashSet<Guid> _selectedToAdd = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        var staffRes = await ListStaffHandler.HandleAsync(false, CancellationToken.None);
+        _allStaff = staffRes.Value?.Items ?? Array.Empty<ListStaff.Item>();
+    }
 
     private async Task LoadAsync()
     {
@@ -139,6 +186,7 @@ else
         // Load existing form schema directly from the entity via GetById doesn't include FormSchemaJson,
         // so call the public schema endpoint via handler. But we can read via the dedicated handler.
         await LoadSchemaAsync();
+        await LoadAssignedStaffAsync();
     }
 
     [Inject] private BookSlot.Features.ServiceTypes.GetFormSchema.GetServiceTypeFormSchema.Handler SchemaHandler { get; set; } = null!;
@@ -241,5 +289,35 @@ else
             ["options"] = f.Options,
         });
         return JsonSerializer.Serialize(new { fields = arr });
+    }
+
+    private async Task LoadAssignedStaffAsync()
+    {
+        var res = await GetAssignedStaffHandler.HandleAsync(Id, CancellationToken.None);
+        _assignedStaffIds = res.IsSuccess
+            ? new HashSet<Guid>(res.Value!.Items.Select(i => i.Id))
+            : new HashSet<Guid>();
+    }
+
+    private void ToggleStaffToAdd(Guid id, bool on, bool isAssigned)
+    {
+        if (isAssigned) return;
+        if (on) _selectedToAdd.Add(id); else _selectedToAdd.Remove(id);
+    }
+
+    private async Task AssignStaffAsync()
+    {
+        var cmd = new BulkAssignStaff.Command(_selectedToAdd.ToList());
+        var res = await BulkAssignHandler.HandleAsync(Id, cmd, CancellationToken.None);
+        if (res.IsSuccess)
+        {
+            Snackbar.Add($"Assigned {res.Value!.AssignedCount} staff member(s).", Severity.Success);
+            _selectedToAdd.Clear();
+            await LoadAssignedStaffAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error.Message, Severity.Error);
+        }
     }
 }
