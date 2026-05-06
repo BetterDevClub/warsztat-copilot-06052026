@@ -59,8 +59,7 @@ if ($reviewText -match '(?im)^\s*REQUEST_CHANGES\b') {
     Write-Error "[pr-finalize] review.approved.md = REQUEST_CHANGES (back to implementer)"; exit 2
 }
 $verifyText = Read-IfExists $verifyReport
-if ($verifyText -and ($verifyText -notmatch '(?im)^\s*verifier\s*:\s*PASS' -and
-                     $verifyText -notmatch '(?im)\bPASS\b')) {
+if (-not $verifyText -or $verifyText -notmatch '(?im)^##\s+Overall:\s+PASS\b') {
     Write-Error "[pr-finalize] last verify-report.md is not PASS"; exit 2
 }
 
